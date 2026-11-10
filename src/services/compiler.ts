@@ -44,7 +44,7 @@ export function compileSpecMd(state: ProjectState): string {
   if (state.clarifications && state.clarifications.length > 0) {
     state.clarifications.forEach((c) => {
       earsRequirements.push(
-        `- **REQ-CLARIFICATION (${c.category}):** When handling ${c.category}, the system shall enforce the confirmed decision: ${c.selectedAnswer || c.options[0]}.`
+        `- **REQ-CLARIFICATION-${c.id} (${c.category}):** When handling ${c.category}, the system shall enforce the confirmed decision: ${c.selectedAnswer || c.options[0]}.`
       );
     });
   }
