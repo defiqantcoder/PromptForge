@@ -9,6 +9,7 @@ lerna-debug.log*
 
 # Node / Frontend build & dependencies
 node_modules/
+build/
 dist/
 dist-ssr/
 coverage/
