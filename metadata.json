@@ -1,0 +1,6 @@
+{
+  "name": "PromptForge Workstation",
+  "description": "Native Ubuntu specification workstation that translates plain-language app ideas into spec.md, plan.md, tasks.md, AGENTS.md, and multi-platform AI prompt contracts.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
