@@ -3,6 +3,7 @@ import { createServer as createViteServer } from 'vite';
 import path from 'path';
 import dotenv from 'dotenv';
 import { GoogleGenAI, Type } from '@google/genai';
+import { fileURLToPath } from 'url';
 
 dotenv.config();
 
@@ -19,9 +20,19 @@ function getAiClient(): GoogleGenAI {
   });
 }
 
-async function startServer() {
+export async function createApp() {
   const app = express();
   app.use(express.json({ limit: '2mb' }));
+
+
+  const requireGeminiKey = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+    const key = process.env.GEMINI_API_KEY;
+    if (!key || key === 'MY_GEMINI_API_KEY' || key.trim().length === 0) {
+      res.status(503).json({ error: 'PromptForge needs a valid Gemini API Key to work. Please set it in your environment variables.' });
+      return;
+    }
+    next();
+  };
 
   // Health & API Key readiness endpoint
   app.get('/api/health', (_req, res) => {
@@ -38,16 +49,21 @@ async function startServer() {
   });
 
   // 1. Expand / Flesh Out Idea endpoint
-  app.post('/api/gemini/expand', async (req, res) => {
+  app.post('/api/gemini/expand', requireGeminiKey, async (req, res) => {
     try {
       const { appName, coreIdea, targetPlatform, features } = req.body || {};
       if (!coreIdea || typeof coreIdea !== 'string') {
         res.status(400).json({ error: 'Please enter at least a rough phrase or sentence for your app idea first.' });
         return;
       }
+      if (features !== undefined && (!Array.isArray(features) || !features.every(f => typeof f === 'string'))) {
+        res.status(400).json({ error: 'Invalid features payload.' });
+        return;
+      }
 
       const ai = getAiClient();
-      const response = await ai.models.generateContent({
+      const response = await (Promise.race([
+        ai.models.generateContent({
         model: 'gemini-3.8-flash',
         contents: `You are PromptForge, a friendly product architect that translates rough, plain-English app thoughts into clear, jargon-free specifications.
 
@@ -89,13 +105,24 @@ Expand this rough idea into:
             required: ['appName', 'tagline', 'expandedIdea', 'suggestedFeatures'],
           },
         },
-      });
+      }),
+      new Promise<any>((_, reject) => setTimeout(() => reject(new Error('TIMEOUT')), 30000))
+      ]) as Promise<any>);
 
       const rawText = (response.text ?? '{}').trim();
-      const parsed = JSON.parse(rawText);
+      let parsed;
+      try {
+        parsed = JSON.parse(rawText);
+      } catch (e) {
+        res.status(502).json({ error: 'Received an invalid response from the AI. Your existing text has been safely preserved.' });
+        return;
+      }
       res.json(parsed);
     } catch (error: any) {
-      console.error('Gemini expand error:', error);
+      if (error?.message === 'TIMEOUT') {
+        res.status(504).json({ error: 'Gemini took too long. Your existing text has been safely preserved.' });
+        return;
+      }
       res.status(500).json({
         error:
           error?.message ||
@@ -105,9 +132,13 @@ Expand this rough idea into:
   });
 
   // 2. Generate a Random App Idea with AI
-  app.post('/api/gemini/random-idea', async (req, res) => {
+  app.post('/api/gemini/random-idea', requireGeminiKey, async (req, res) => {
     try {
       const { categoryHint } = req.body || {};
+      if (categoryHint !== undefined && typeof categoryHint !== 'string') {
+        res.status(400).json({ error: 'Invalid category hint.' });
+        return;
+      }
       const seedCategories = [
         'a local-first Ubuntu creative audio or visual utility',
         'a smart personal productivity or focus ritual workstation',
@@ -119,7 +150,8 @@ Expand this rough idea into:
         categoryHint || seedCategories[Math.floor(Math.random() * seedCategories.length)];
 
       const ai = getAiClient();
-      const response = await ai.models.generateContent({
+      const response = await (Promise.race([
+        ai.models.generateContent({
         model: 'gemini-3.8-flash',
         contents: `Invent an original, practical, and inspiring application idea around the theme: "${chosenTheme}".
 Make it concrete, distinctive, and immediately understandable by a non-technical builder.
@@ -191,13 +223,24 @@ Include:
             ],
           },
         },
-      });
+      }),
+      new Promise<any>((_, reject) => setTimeout(() => reject(new Error('TIMEOUT')), 30000))
+      ]) as Promise<any>);
 
       const rawText = (response.text ?? '{}').trim();
-      const parsed = JSON.parse(rawText);
+      let parsed;
+      try {
+        parsed = JSON.parse(rawText);
+      } catch (e) {
+        res.status(502).json({ error: 'Received an invalid response from the AI. Your existing text has been safely preserved.' });
+        return;
+      }
       res.json(parsed);
     } catch (error: any) {
-      console.error('Gemini random-idea error:', error);
+      if (error?.message === 'TIMEOUT') {
+        res.status(504).json({ error: 'Gemini took too long. Your existing text has been safely preserved.' });
+        return;
+      }
       res.status(500).json({
         error:
           error?.message ||
@@ -207,16 +250,29 @@ Include:
   });
 
   // 3. Socratic Interrogator ("Grill Me" 3-Question Interview)
-  app.post('/api/gemini/grill', async (req, res) => {
+  app.post('/api/gemini/grill', requireGeminiKey, async (req, res) => {
     try {
       const { appName, coreIdea, targetPlatform, features, groundRules } = req.body || {};
       if (!coreIdea || typeof coreIdea !== 'string') {
         res.status(400).json({ error: 'Please describe your app idea first so PromptForge knows what to ask.' });
         return;
       }
+      if (appName !== undefined && typeof appName !== 'string') {
+        res.status(400).json({ error: 'Invalid app name.' });
+        return;
+      }
+      if (targetPlatform !== undefined && typeof targetPlatform !== 'string') {
+        res.status(400).json({ error: 'Invalid target platform.' });
+        return;
+      }
+      if (features !== undefined && (!Array.isArray(features) || !features.every(f => typeof f === 'string'))) {
+        res.status(400).json({ error: 'Invalid features payload.' });
+        return;
+      }
 
       const ai = getAiClient();
-      const response = await ai.models.generateContent({
+      const response = await (Promise.race([
+        ai.models.generateContent({
         model: 'gemini-3.8-flash',
         contents: `Analyze this application specification and generate 3 sharp, friendly multiple-choice clarification questions ("Grill Me") that uncover missing product details, edge cases, or user experience choices.
 
@@ -262,13 +318,24 @@ Rules for the 3 questions:
             required: ['questions'],
           },
         },
-      });
+      }),
+      new Promise<any>((_, reject) => setTimeout(() => reject(new Error('TIMEOUT')), 30000))
+      ]) as Promise<any>);
 
       const rawText = (response.text ?? '{}').trim();
-      const parsed = JSON.parse(rawText);
+      let parsed;
+      try {
+        parsed = JSON.parse(rawText);
+      } catch (e) {
+        res.status(502).json({ error: 'Received an invalid response from the AI. Your existing text has been safely preserved.' });
+        return;
+      }
       res.json(parsed);
     } catch (error: any) {
-      console.error('Gemini grill error:', error);
+      if (error?.message === 'TIMEOUT') {
+        res.status(504).json({ error: 'Gemini took too long. Your existing text has been safely preserved.' });
+        return;
+      }
       res.status(500).json({
         error:
           error?.message ||
@@ -291,9 +358,17 @@ Rules for the 3 questions:
     });
   }
 
+  return app;
+}
+
+
+async function startServer() {
+  const app = await createApp();
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`PromptForge Workstation server running on http://0.0.0.0:${PORT}`);
   });
 }
 
-startServer();
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  startServer();
+}
