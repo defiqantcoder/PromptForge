@@ -1,7 +1,7 @@
-# PromptForge / PRomptForge — Complete Codebase & Context Bundle
+# PromptForge — Complete Codebase & Context Bundle
 
-- **Repository**: `https://github.com/defiqantcoder/PRomptForge.git` (HEAD: `502aaff`)
-- **Excluded from bundle**: `bun.lock` (lockfile), `stitch_promptforge_ubuntu_app.zip` (binary design archive), `node_modules/`, `.git/`, `.metadata.json`, and 4 exact-duplicate copies under `public/assets/aistudio/` (`Agents_413324f4.md`, `plan_1d322616.md`, `spec_b9cfc2d9.md`, `Tasks_2350c830.md` — identical to root `Agents.md`, `plan.md`, `spec.md`, `Tasks.md`).
+- **Repository**: `https://github.com/defiqantcoder/PromptForge.git` (HEAD: `9b5296b`)
+- **Excluded from bundle**: `bun.lock` (lockfile), `src-tauri/icons/*` (binary icon assets), `node_modules/`, `.git/`, `target/`, `implementation_plan.md.metadata.json`, and the 3 exact-duplicate copies under `public/assets/aistudio/` (`Agents_413324f4.md`, `spec_b9cfc2d9.md`, `Tasks_2350c830.md` — identical to root `Agents.md`, `spec.md`, `Tasks.md`).
 
 ## Repository File Tree
 
@@ -37,10 +37,32 @@
 ./spec.md
 ./src
 ./src-tauri
+./src-tauri/.gitignore
+./src-tauri/Cargo.toml
+./src-tauri/build.rs
 ./src-tauri/capabilities
 ./src-tauri/capabilities/default.json
+./src-tauri/icons
+./src-tauri/icons/128x128.png
+./src-tauri/icons/128x128@2x.png
+./src-tauri/icons/32x32.png
+./src-tauri/icons/Square107x107Logo.png
+./src-tauri/icons/Square142x142Logo.png
+./src-tauri/icons/Square150x150Logo.png
+./src-tauri/icons/Square284x284Logo.png
+./src-tauri/icons/Square30x30Logo.png
+./src-tauri/icons/Square310x310Logo.png
+./src-tauri/icons/Square44x44Logo.png
+./src-tauri/icons/Square71x71Logo.png
+./src-tauri/icons/Square89x89Logo.png
+./src-tauri/icons/StoreLogo.png
+./src-tauri/icons/icon.icns
+./src-tauri/icons/icon.ico
+./src-tauri/icons/icon.png
 ./src-tauri/src
 ./src-tauri/src/lib.rs
+./src-tauri/src/main.rs
+./src-tauri/tauri.conf.json
 ./src/App.tsx
 ./src/components
 ./src/components/Card.tsx
@@ -117,57 +139,74 @@ Provide a fast, friendly, and jargon-free Ubuntu desktop application that allows
 ```markdown
 # Technical Plan: PromptForge Native Workstation
 
-## 1. System Architecture
-PromptForge runs as a compiled native Linux binary using Tauri v2. The frontend is an isolated React 19 single-page application rendered inside the system WebKit engine, communicating with a lightweight Rust backend via asynchronous IPC commands.
+## 1. Current State & Gap Analysis
+- **Completed Components:**
+  - React 19 frontend with 3-tier complexity switcher (`Simple | Balanced | Pro`).
+  - Five stacked workstation decks (`ManifestDeck`, `ArchitectureDeck`, `GrillDeck`, `TasksDeck`, `ExporterDeck`).
+  - Contract compiler generating `spec.md`, `plan.md`, `tasks.md`, `AGENTS.md`, and platform prompt contracts (Stitch, AI Studio, Antigravity, Copilot, Canvas).
+  - Universal 100ms hover explainer dictionary with accessible ARIA semantics.
+  - Express server (`server.ts`) acting as a temporary development proxy for Gemini API endpoints.
+- **Architectural Gaps to Bridge:**
+  - Tauri configuration files (`src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`, `src-tauri/src/main.rs`) are missing from the project tree.
+  - In native desktop mode, the app cannot rely on `server.ts` (Node/Express). Gemini API calls and keyring storage must route directly through Rust IPC commands or direct client-side requests using keys loaded from the OS keyring.
+  - Directory picking in `SaveModal.tsx` uses simulated paths; it needs native file-picker integration via `@tauri-apps/plugin-dialog`.
 
-Flow:
-[React 19 Frontend: Decks & Mode Switcher] 
-    │
-    ├──► [Gemini API Client (@google/genai)] ──► Real-Time Preview Console
-    │
-    └──► [Tauri IPC Bridge (@tauri-apps/api/core)]
-             │
-             ▼
-[Rust Backend (src-tauri)]
-    ├──► Filesystem Writer (Atomic spec/agents/tasks save)
-    └──► GNOME Keyring Client (Secure credential storage)
+---
 
-## 2. Key Data Models (TypeScript)
+## 2. Target System Architecture
+┌────────────────────────────────────────────────────────┐
+│                   React 19 Frontend                    │
+│  ┌───────────────────┐  ┌───────────────────────────┐  │
+│  │ Form Decks & Mode │  │ Real-Time Preview Console │  │
+│  └─────────┬─────────┘  └─────────────▲─────────────┘  │
+│            │                          │                │
+│            ▼                          │                │
+│  ┌───────────────────┐                │                │
+│  │ Tauri IPC Bridge  │────────────────┘                │
+│  └─────────┬─────────┘                                 │
+└────────────┼───────────────────────────────────────────┘
+│ @tauri-apps/api/core (invoke)
+┌────────────▼───────────────────────────────────────────┐
+│              Native Rust Backend (src-tauri)           │
+│  ┌──────────────────────────────────────────────────┐  │
+│  │ lib.rs Command Handlers                          │  │
+│  │  • save_spec_bundle (Canonical path file writer) │  │
+│  │  • get_api_key / set_api_key (libsecret/keyring) │  │
+│  │  • gemini_generate (reqwest HTTPS proxy)        │  │
+│  └──────────────────────────────────────────────────┘  │
+└────────────────────────────────────────────────────────┘
+---
 
-Type Definitions:
-- ComplexityMode: 'simple' | 'balanced' | 'pro'
-- TargetPlatform: 'web' | 'mobile' | 'desktop' | 'cli'
+## 3. Phased Execution Roadmap
 
-Project State Contract:
-- appName: string
-- coreIdea: string
-- targetPlatform: TargetPlatform
-- features: string[]
-- groundRules:
-  - offlineFirst: boolean
-  - highPerformance: boolean
-  - localPrivacy: boolean
-  - darkModeDefault: boolean
-- clarifications: Array<{ id: string; question: string; options: string[]; selectedAnswer?: string }>
-- customRules: string[]
+### Phase 1: Native Tauri v2 Core Harness
+1. **Initialize Missing Tauri Crates:**
+   - Create `src-tauri/Cargo.toml` with `tauri = "2"`, `serde`, `serde_json`, `reqwest`, and `keyring` (for GNOME Keyring / libsecret support).
+   - Create `src-tauri/src/main.rs` wiring `tauri::Builder` with handlers defined in `src-tauri/src/lib.rs`.
+   - Create `src-tauri/tauri.conf.json` declaring bundle identifier, WebKit window options (1440x900, dark background `#0F0C1B`), and security permissions.
+2. **Permission Whitelist:**
+   - Update `src-tauri/capabilities/default.json` to allow `dialog:open` and scoped directory access.
 
-## 3. Rust Backend Commands (src-tauri/src/lib.rs)
+### Phase 2: Native Gemini & Keyring IPC Engine
+1. **Desktop Keyring Command:**
+   - Implement `set_secure_key(service: String, key: String)` and `get_secure_key(service: String)` using the `keyring` crate so keys persist across Ubuntu sessions in GNOME Keyring.
+2. **Native AI Proxy Command:**
+   - Implement `gemini_proxy_request(endpoint: String, payload: Value) -> Result<Value, String>` in Rust using `reqwest`.
+   - Update `src/services/geminiClient.ts` to detect `isTauriEnvironment()`: if native, call `invoke('gemini_proxy_request')`; if running in web preview, fall back to `/api/gemini/*`.
 
-- `save_spec_bundle(target_dir: String, files: HashMap<String, String>) -> Result<bool, String>`
-  - Canonicalizes destination directory path.
-  - Validates write permissions and rejects directory traversal sequences.
-  - Atomically writes `AGENTS.md`, `spec.md`, and `tasks.md` to disk.
+### Phase 3: Native OS Dialogs & Filesystem Wiring
+1. **Folder Selection:**
+   - Wire `@tauri-apps/plugin-dialog` into `src/components/SaveModal.tsx` so clicking "Browse Folder" opens the native Ubuntu Nautilus directory selector.
+2. **Atomic Disk Export:**
+   - Verify `save_spec_bundle` canonicalizes paths, rejects `../` traversal, and writes `AGENTS.md`, `spec.md`, `plan.md`, and `tasks.md` directly into the chosen repository root.
 
-- `get_secure_key(service: String) -> Result<String, String>`
-  - Queries local desktop keyring for the saved Gemini API key.
-
-- `set_secure_key(service: String, key: String) -> Result<(), String>`
-  - Saves the Gemini API key securely using system credential storage.
-
-## 4. UI Design Implementation
-- Color Scheme: Glassmorphic dark purple (`#0F0C1B` background, frosted `#1A142E` cards, `#8B5CF6` electric violet accents, `#34D399` mint green status).
-- Tooltip System: Built using Radix UI Tooltip primitives styled with a 1px solid lilac border, 12px chamfered corners, and subtle back-glows.
-- Monospace Syntax View: Highlighted Markdown viewer for live inspection of compiled contracts before saving.
+### Phase 4: Verification & Package Compilation
+1. **Typecheck & Lints:**
+   - Run `npx tsc --noEmit` and `cargo check --manifest-path src-tauri/Cargo.toml`.
+2. **Local Desktop Execution:**
+   - Run `npm run tauri dev` to verify the WebKit window boots, renders the purple glass UI, and performs IPC calls without console errors.
+3. **Packaging:**
+   - Build native Ubuntu artifacts (`.deb` and `.AppImage`) using `npm run tauri build`.
 ```
 
 ### `Tasks.md`
@@ -622,6 +661,64 @@ The design system standardizes on balanced structural geometry with `roundedness
 
 ### Desktop Window Titlebar
 - **Native Header Integration**: Integrated glass header featuring custom window actions (minimize, maximize, close) blended alongside breadcrumbs, active workspace indicator, and hotkey launch badges.
+```
+
+### `public/assets/aistudio/plan_1d322616.md`
+
+```markdown
+# Technical Plan: PromptForge Native Workstation
+
+## 1. System Architecture
+PromptForge runs as a compiled native Linux binary using Tauri v2. The frontend is an isolated React 19 single-page application rendered inside the system WebKit engine, communicating with a lightweight Rust backend via asynchronous IPC commands.
+
+Flow:
+[React 19 Frontend: Decks & Mode Switcher] 
+    │
+    ├──► [Gemini API Client (@google/genai)] ──► Real-Time Preview Console
+    │
+    └──► [Tauri IPC Bridge (@tauri-apps/api/core)]
+             │
+             ▼
+[Rust Backend (src-tauri)]
+    ├──► Filesystem Writer (Atomic spec/agents/tasks save)
+    └──► GNOME Keyring Client (Secure credential storage)
+
+## 2. Key Data Models (TypeScript)
+
+Type Definitions:
+- ComplexityMode: 'simple' | 'balanced' | 'pro'
+- TargetPlatform: 'web' | 'mobile' | 'desktop' | 'cli'
+
+Project State Contract:
+- appName: string
+- coreIdea: string
+- targetPlatform: TargetPlatform
+- features: string[]
+- groundRules:
+  - offlineFirst: boolean
+  - highPerformance: boolean
+  - localPrivacy: boolean
+  - darkModeDefault: boolean
+- clarifications: Array<{ id: string; question: string; options: string[]; selectedAnswer?: string }>
+- customRules: string[]
+
+## 3. Rust Backend Commands (src-tauri/src/lib.rs)
+
+- `save_spec_bundle(target_dir: String, files: HashMap<String, String>) -> Result<bool, String>`
+  - Canonicalizes destination directory path.
+  - Validates write permissions and rejects directory traversal sequences.
+  - Atomically writes `AGENTS.md`, `spec.md`, and `tasks.md` to disk.
+
+- `get_secure_key(service: String) -> Result<String, String>`
+  - Queries local desktop keyring for the saved Gemini API key.
+
+- `set_secure_key(service: String, key: String) -> Result<(), String>`
+  - Saves the Gemini API key securely using system credential storage.
+
+## 4. UI Design Implementation
+- Color Scheme: Glassmorphic dark purple (`#0F0C1B` background, frosted `#1A142E` cards, `#8B5CF6` electric violet accents, `#34D399` mint green status).
+- Tooltip System: Built using Radix UI Tooltip primitives styled with a 1px solid lilac border, 12px chamfered corners, and subtle back-glows.
+- Monospace Syntax View: Highlighted Markdown viewer for live inspection of compiled contracts before saving.
 ```
 
 ## Configuration & CI
@@ -1205,78 +1302,143 @@ Rules for the 3 questions:
 startServer();
 ```
 
+### `src-tauri/Cargo.toml`
+
+```toml
+[package]
+name = "app"
+version = "0.1.0"
+description = "A Tauri App"
+authors = ["you"]
+license = ""
+repository = ""
+edition = "2024"
+rust-version = "1.90"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+name = "app_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.7.4" }
+
+[dependencies]
+serde_json = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+log = "0.4"
+tauri = { version = "2.12.5" }
+tauri-plugin-log = "2"
+```
+
+### `src-tauri/build.rs`
+
+```rust
+fn main() {
+  tauri_build::build()
+}
+```
+
+### `src-tauri/tauri.conf.json`
+
+```json
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "promptforge",
+  "version": "0.1.0",
+  "identifier": "com.tauri.dev",
+  "build": {
+    "frontendDist": "../dist",
+    "devUrl": "http://localhost:3000",
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "PromptForge Workstation",
+        "width": 800,
+        "height": 600,
+        "resizable": true,
+        "fullscreen": false
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "android": {
+      "debugApplicationIdSuffix": ".debug"
+    }
+  }
+}
+```
+
+### `src-tauri/.gitignore`
+
+```text
+# Generated by Cargo
+# will have compiled files and executables
+/target/
+/gen/schemas
+```
+
 ### `src-tauri/capabilities/default.json`
 
 ```json
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Least-privilege desktop security permissions for PromptForge specification exports",
-  "windows": ["main"],
+  "description": "enables the default permissions",
+  "windows": [
+    "main"
+  ],
   "permissions": [
-    "core:default",
-    "dialog:allow-open",
-    "dialog:allow-save",
-    "fs:allow-write-text-file"
+    "core:default"
   ]
+}
+```
+
+### `src-tauri/src/main.rs`
+
+```rust
+// Prevents additional console window on Windows in release, DO NOT REMOVE!!
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
+fn main() {
+  app_lib::run();
 }
 ```
 
 ### `src-tauri/src/lib.rs`
 
 ```rust
-use std::collections::HashMap;
-use std::fs;
-use std::path::{Component, Path, PathBuf};
-
-/// Canonicalizes destination directory path and rejects directory traversal ('..') sequences.
-fn validate_and_resolve_dir(target_dir: &str) -> Result<PathBuf, String> {
-    let raw_path = Path::new(target_dir.trim());
-    for component in raw_path.components() {
-        if matches!(component, Component::ParentDir) {
-            return Err("Security Error: Directory traversal ('..') is prohibited.".to_string());
-        }
-    }
-    if !raw_path.exists() {
-        fs::create_dir_all(raw_path)
-            .map_err(|e| format!("Failed to create target directory: {}", e))?;
-    }
-    fs::canonicalize(raw_path)
-        .map_err(|e| format!("Failed to canonicalize path '{}': {}", target_dir, e))
-}
-
-#[tauri::command]
-pub fn save_spec_bundle(
-    target_dir: String,
-    files: HashMap<String, String>,
-) -> Result<bool, String> {
-    let resolved_dir = validate_and_resolve_dir(&target_dir)?;
-    let allowed_files = ["AGENTS.md", "spec.md", "plan.md", "tasks.md"];
-
-    for (filename, content) in files {
-        if !allowed_files.contains(&filename.as_str()) {
-            return Err(format!("Disallowed specification filename: {}", filename));
-        }
-        let dest = resolved_dir.join(&filename);
-        fs::write(&dest, content.as_bytes())
-            .map_err(|e| format!("Failed to write {}: {}", filename, e))?;
-    }
-
-    Ok(true)
-}
-
-#[tauri::command]
-pub fn get_secure_key(service: String) -> Result<String, String> {
-    std::env::var("GEMINI_API_KEY")
-        .map_err(|_| format!("No key found in system keyring for service: {}", service))
-}
-
-#[tauri::command]
-pub fn set_secure_key(_service: String, key: String) -> Result<(), String> {
-    if key.trim().is_empty() {
-        return Err("API key cannot be empty.".to_string());
-    }
-    Ok(())
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
+pub fn run() {
+  tauri::Builder::default()
+    .setup(|app| {
+      if cfg!(debug_assertions) {
+        app.handle().plugin(
+          tauri_plugin_log::Builder::default()
+            .level(log::LevelFilter::Info)
+            .build(),
+        )?;
+      }
+      Ok(())
+    })
+    .run(tauri::generate_context!())
+    .expect("error while building tauri application");
 }
 ```
 

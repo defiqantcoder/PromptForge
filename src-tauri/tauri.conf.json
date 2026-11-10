@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "promptforge",
+  "productName": "PromptForge",
   "version": "0.1.0",
-  "identifier": "com.tauri.dev",
+  "identifier": "dev.promptforge.workstation",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:3000",
@@ -12,9 +12,13 @@
   "app": {
     "windows": [
       {
+        "label": "main",
         "title": "PromptForge Workstation",
-        "width": 800,
-        "height": 600,
+        "width": 1440,
+        "height": 900,
+        "minWidth": 1024,
+        "minHeight": 700,
+        "backgroundColor": "#0F0C1B",
         "resizable": true,
         "fullscreen": false
       }
