@@ -5,6 +5,8 @@ on:
     branches:
       - main
   pull_request:
+    branches:
+      - main
 
 permissions:
   contents: read
@@ -47,11 +49,10 @@ jobs:
           workspaces: "src-tauri"
 
       - name: Install frontend dependencies
-        run: npm install
+        run: npm install --legacy-peer-deps
 
       - name: Typecheck TypeScript
         run: npx tsc --noEmit
 
       - name: Check Rust backend
-        working-directory: src-tauri
-        run: cargo check
+        run: cargo check --manifest-path src-tauri/Cargo.toml
