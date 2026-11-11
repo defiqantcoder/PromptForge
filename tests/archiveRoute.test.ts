@@ -1,7 +1,7 @@
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert';
 import express from 'express';
-import { registerArchiveRoutes } from '../server/archiveRoute.ts';
+import { createApp } from '../server.ts';
 
 describe('Archive Route (POST /api/export/bundle)', () => {
   let app: express.Application;
@@ -9,9 +9,14 @@ describe('Archive Route (POST /api/export/bundle)', () => {
   let port: number;
 
   before(async () => {
-    app = express();
-    app.use(express.json());
-    registerArchiveRoutes(app);
+    const originalMode = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'production';
+    try {
+      app = await createApp();
+    } finally {
+      if (originalMode === undefined) delete process.env.NODE_ENV;
+      else process.env.NODE_ENV = originalMode;
+    }
     await new Promise<void>((resolve) => {
       server = app.listen(0, () => {
         port = server.address().port;
@@ -39,6 +44,40 @@ describe('Archive Route (POST /api/export/bundle)', () => {
     assert.strictEqual(res.status, 400);
     const data = await res.json();
     assert.strictEqual(data.error, 'Missing or invalid "files" object.');
+  });
+
+  it('rejects a request without a parsed JSON body', async () => {
+    const res = await fetch(`http://localhost:${port}/api/export/bundle`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: 'unparsed body',
+    });
+    assert.strictEqual(res.status, 400);
+    assert.deepStrictEqual(await res.json(), { error: 'Missing or invalid "files" object.' });
+  });
+
+  it('rejects arrays, null, and scalar files values', async () => {
+    for (const files of [[], ['content'], null, 'content', 42, true]) {
+      const res = await fetchBundle({ files });
+      assert.strictEqual(res.status, 400);
+      assert.deepStrictEqual(await res.json(), { error: 'Missing or invalid "files" object.' });
+    }
+  });
+
+  it('uses the project filename fallback for absent, empty, and non-string app names', async () => {
+    for (const appName of [undefined, '', null, 42, true, {}, []]) {
+      const res = await fetchBundle({ appName, files: { 'spec.md': 'My spec' } });
+      assert.strictEqual(res.status, 200);
+      assert.strictEqual(res.headers.get('content-disposition'), 'attachment; filename="project-spec-bundle.zip"');
+      await res.arrayBuffer();
+    }
+  });
+
+  it('accepts JSON bundles larger than the default parser limit', async () => {
+    const res = await fetchBundle({ files: { 'spec.md': 'x'.repeat(128 * 1024) } });
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.headers.get('content-type'), 'application/zip');
+    await res.arrayBuffer();
   });
 
   it('rejects files outside allowlist', async () => {

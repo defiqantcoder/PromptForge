@@ -6,9 +6,10 @@ const ALLOWED_FILES = ['AGENTS.md', 'spec.md', 'plan.md', 'tasks.md'];
 
 export function registerArchiveRoutes(app: Application) {
   app.post('/api/export/bundle', (req: Request, res: Response) => {
-    const { appName, files } = req.body;
+    const { appName, files } = req.body ?? {};
 
-    if (!files || typeof files !== 'object') {
+    if (!files || typeof files !== 'object' ||
+        (Object.getPrototypeOf(files) !== Object.prototype && Object.getPrototypeOf(files) !== null)) {
       return res.status(400).json({ error: 'Missing or invalid "files" object.' });
     }
 
@@ -121,7 +122,7 @@ export function registerArchiveRoutes(app: Application) {
 
     const zipBuffer = Buffer.concat([...localFileHeaders, centralDirectoryData, eocd]);
 
-    const slug = (appName || 'project').replace(/[^a-z0-9]/gi, '-').toLowerCase();
+    const slug = (typeof appName === 'string' && appName ? appName : 'project').replace(/[^a-z0-9]/gi, '-').toLowerCase();
 
     res.setHeader('Content-Type', 'application/zip');
     res.setHeader('Content-Disposition', `attachment; filename="${slug}-spec-bundle.zip"`);
