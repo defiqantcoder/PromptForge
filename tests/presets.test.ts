@@ -19,7 +19,7 @@ test('presets test suite', async (t) => {
 
   await t.test('DEFAULT_PROJECT_STATE coverage', () => {
     assert.ok(DEFAULT_PROJECT_STATE.appName.length > 0);
-    assert.ok(DEFAULT_PROJECT_STATE.features.length >= 0);
+    assert.ok(DEFAULT_PROJECT_STATE.features.length > 0);
   });
 
   await t.test('STARTER_TEMPLATES coverage', () => {

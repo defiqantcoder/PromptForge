@@ -102,4 +102,11 @@ test('compiler test suite', async (t) => {
     assert.doesNotThrow(() => compileAgentsMd(emptyState));
     assert.doesNotThrow(() => compilePlatformContract(emptyState, 'stitch'));
   });
+
+  await t.test('compileSpecMd normalizes feature line breaks to prevent list splitting', () => {
+    const multilineState = { ...mockState, features: ['Export report\n- Delete records'] };
+    const specMd = compileSpecMd(multilineState);
+    assert.match(specMd, /1\. Export report - Delete records/);
+    assert.doesNotMatch(specMd, /\n- Delete records/);
+  });
 });

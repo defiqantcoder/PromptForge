@@ -25,8 +25,9 @@ export function canonicalizeLinuxPath(rawPath: string): {
     };
   }
 
-  // Reject directory traversal sequences as required by AGENTS.md security rules
-  if (trimmed.includes('..')) {
+  // Reject directory traversal sequences across '/' or '\' segments as required by AGENTS.md
+  const normalizedSlashes = trimmed.replace(/\\/g, '/');
+  if (normalizedSlashes.split('/').some((segment) => segment === '..')) {
     return {
       valid: false,
       canonicalPath: trimmed,

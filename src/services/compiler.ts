@@ -15,7 +15,9 @@ function interpolateVariables(text: string, vars: Record<string, string>): strin
 }
 
 export function compileSpecMd(state: ProjectState): string {
-  const safeFeatures = (state.features || []).map(f => f.trim()).filter(Boolean);
+  const safeFeatures = (state.features || [])
+    .map((f) => f.replace(/[\r\n]+/g, ' ').trim())
+    .filter(Boolean);
   const earsRequirements = safeFeatures.map((feat, idx) => {
     const clean = feat.replace(/\.$/, '');
     return `- **REQ-00${idx + 1} (Feature Flow):** When the user interacts with the workspace to ${clean.charAt(0).toLowerCase() + clean.slice(1)}, the system shall complete the action with clear visual feedback and preserve active session state.`;
