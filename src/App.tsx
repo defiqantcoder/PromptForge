@@ -2,12 +2,15 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
   AlertTriangle,
   CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
   Cpu,
   FileCode2,
   FileText,
   FolderKanban,
   HardDrive,
   KeyRound,
+  Layers,
   Loader2,
   RotateCcw,
   Terminal,
@@ -24,6 +27,7 @@ import {
   ProjectState,
   RecentBlueprintItem,
   SpecFileId,
+  WorkstationPageId,
 } from './types/project';
 import {
   AI_MODELS,
@@ -61,7 +65,10 @@ import { ManifestDeck } from './decks/ManifestDeck';
 import { ArchitectureDeck } from './decks/ArchitectureDeck';
 import { GrillDeck } from './decks/GrillDeck';
 import { TasksDeck } from './decks/TasksDeck';
-import { WorkflowDeck } from './decks/WorkflowDeck';
+import { StitchStudioDeck } from './decks/StitchStudioDeck';
+import { BuildStageDeck } from './decks/BuildStageDeck';
+import { LocalAgentsDeck } from './decks/LocalAgentsDeck';
+import { MultiAgentDeck } from './decks/MultiAgentDeck';
 import { ExporterDeck } from './decks/ExporterDeck';
 
 const STORAGE_KEY = 'promptforge_workstation_state_v1';
@@ -114,6 +121,8 @@ function normalizeProjectState(raw: Partial<ProjectState> | null | undefined): P
   return {
     ...DEFAULT_PROJECT_STATE,
     ...raw,
+    workflowPlan: raw.workflowPlan ?? DEFAULT_PROJECT_STATE.workflowPlan ?? '',
+    suggestedAppOverride: raw.suggestedAppOverride,
     aiModel: raw.aiModel ?? DEFAULT_PROJECT_STATE.aiModel ?? 'gemini-3.8-flash',
     codingLanguage: raw.codingLanguage ?? DEFAULT_PROJECT_STATE.codingLanguage,
     codingLanguageNote: raw.codingLanguageNote ?? '',
@@ -161,6 +170,94 @@ function normalizeProjectState(raw: Partial<ProjectState> | null | undefined): P
     },
   };
 }
+
+export interface WorkstationPageConfig {
+  id: WorkstationPageId;
+  pageNumber: string;
+  title: string;
+  shortTitle: string;
+  badge: string;
+  tooltipKey: string;
+  minMode?: ComplexityMode;
+}
+
+export const WORKSTATION_PAGES: WorkstationPageConfig[] = [
+  {
+    id: 'manifest',
+    pageNumber: '01',
+    title: '01. Manifest & Plain Language Ideas',
+    shortTitle: '01. Manifest & Ideas',
+    badge: 'Q1–Q4 Core Inputs',
+    tooltipKey: 'page-manifest',
+  },
+  {
+    id: 'architecture',
+    pageNumber: '02',
+    title: '02. Everyday Ground Rules & Quality Guardrails',
+    shortTitle: '02. Ground Rules',
+    badge: 'Guardrails & Principles',
+    tooltipKey: 'page-architecture',
+    minMode: 'balanced',
+  },
+  {
+    id: 'grill',
+    pageNumber: '03',
+    title: '03. "Grill Me" — Dynamic Clarification Interview',
+    shortTitle: '03. Grill Me Interview',
+    badge: 'Q1–Q8 Interview',
+    tooltipKey: 'page-grill',
+    minMode: 'balanced',
+  },
+  {
+    id: 'tasks',
+    pageNumber: '04',
+    title: '04. Pro Architect Controls, Task Slicing & AGENTS.md Sections',
+    shortTitle: '04. Pro Controls & Tasks',
+    badge: 'Tasks & Overrides',
+    tooltipKey: 'page-tasks',
+    minMode: 'pro',
+  },
+  {
+    id: 'stitch',
+    pageNumber: '05',
+    title: '05. Guided Build Workflow & Google Stitch UI Studio',
+    shortTitle: '05. Stitch UI Studio',
+    badge: 'Stages 1a & 1b',
+    tooltipKey: 'page-stitch',
+  },
+  {
+    id: 'build-workflow',
+    pageNumber: '06',
+    title: 'Stage 2 — Next Build App & Full Workflow Plan',
+    shortTitle: '06. Stage 2 Workflow',
+    badge: 'Next App & Plan',
+    tooltipKey: 'page-build-workflow',
+  },
+  {
+    id: 'local-agents',
+    pageNumber: '07',
+    title: 'Optional · Local AI Agents (Ollama / Continue)',
+    shortTitle: '07. Local AI Agents',
+    badge: 'Offline Ollama',
+    tooltipKey: 'page-local-agents',
+  },
+  {
+    id: 'multi-agent',
+    pageNumber: '08',
+    title: 'Optional · Multi-Agent Coordination (COLLABORATION.md)',
+    shortTitle: '08. Multi-Agent Board',
+    badge: 'Lanes & Protocols',
+    tooltipKey: 'page-multi-agent',
+  },
+  {
+    id: 'exporter',
+    pageNumber: '09',
+    title: '06. Targeted Multi-Platform Contract Exporter',
+    shortTitle: '09. Multi-Platform Exporter',
+    badge: 'Targeted Prompts',
+    tooltipKey: 'page-exporter',
+  },
+];
 
 const SPEC_FILES: Array<{ id: SpecFileId; label: string; desc: string }> = [
   {
@@ -255,6 +352,7 @@ export function App() {
   });
 
   const [previousSnapshot, setPreviousSnapshot] = useState<ProjectState | null>(null);
+  const [activePage, setActivePage] = useState<WorkstationPageId>('manifest');
   const [inspectorMode, setInspectorMode] = useState<'files' | 'platforms'>('files');
   const [activeSpecFile, setActiveSpecFile] = useState<SpecFileId>('AGENTS.md');
   const [activePlatform, setActivePlatform] = useState<ExportPlatformId>('stitch');
@@ -262,6 +360,33 @@ export function App() {
   const [keyringModalOpen, setKeyringModalOpen] = useState(false);
   const [hasDesktopKey, setHasDesktopKey] = useState(false);
   const isNativeDesktop = isTauriEnvironment();
+
+  const currentPageIndex = Math.max(
+    0,
+    WORKSTATION_PAGES.findIndex((p) => p.id === activePage)
+  );
+  const currentPageConfig = WORKSTATION_PAGES[currentPageIndex] || WORKSTATION_PAGES[0];
+  const prevPage = currentPageIndex > 0 ? WORKSTATION_PAGES[currentPageIndex - 1] : null;
+  const nextPage =
+    currentPageIndex < WORKSTATION_PAGES.length - 1
+      ? WORKSTATION_PAGES[currentPageIndex + 1]
+      : null;
+
+  const goToPrevPage = () => {
+    if (prevPage) {
+      if (prevPage.minMode === 'balanced' && mode === 'simple') setMode('balanced');
+      if (prevPage.minMode === 'pro' && mode !== 'pro') setMode('pro');
+      setActivePage(prevPage.id);
+    }
+  };
+
+  const goToNextPage = () => {
+    if (nextPage) {
+      if (nextPage.minMode === 'balanced' && mode === 'simple') setMode('balanced');
+      if (nextPage.minMode === 'pro' && mode !== 'pro') setMode('pro');
+      setActivePage(nextPage.id);
+    }
+  };
 
   useEffect(() => {
     if (!isNativeDesktop) return;
@@ -272,6 +397,10 @@ export function App() {
 
   // AI Loading & Toast States
   const [isExpanding, setIsExpanding] = useState(false);
+  const isExpandingRef = useRef(false);
+  isExpandingRef.current = isExpanding;
+  const latestStateRef = useRef<ProjectState>(projectState);
+  latestStateRef.current = projectState;
   const [isGeneratingRandom, setIsGeneratingRandom] = useState(false);
   const [isGrilling, setIsGrilling] = useState(false);
   const [isAutoRefreshingGrill, setIsAutoRefreshingGrill] = useState(false);
@@ -338,7 +467,7 @@ export function App() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  });
+  }, [mode]);
 
   const showToast = (type: 'success' | 'warning', text: string) => {
     setBannerMessage({ type, text });
@@ -360,8 +489,9 @@ export function App() {
 
   // 1. Flesh Out My Idea with Gemini
   const handleFleshOutIdea = async () => {
-    if (isExpanding) return;
-    if (!projectState.coreIdea.trim()) {
+    const currentState = latestStateRef.current;
+    if (isExpandingRef.current) return;
+    if (!currentState.coreIdea.trim()) {
       showToast(
         'warning',
         'Type at least a few words in "What is the big idea?" before clicking Flesh Out.'
@@ -371,15 +501,15 @@ export function App() {
 
     setIsExpanding(true);
     setBannerMessage(null);
-    setPreviousSnapshot(projectState);
+    setPreviousSnapshot(currentState);
 
     try {
       const result = await expandProjectIdea({
-        appName: projectState.appName,
-        coreIdea: projectState.coreIdea,
-        targetPlatform: projectState.targetPlatform,
-        features: projectState.features,
-        aiModel: projectState.aiModel,
+        appName: currentState.appName,
+        coreIdea: currentState.coreIdea,
+        targetPlatform: currentState.targetPlatform,
+        features: currentState.features,
+        aiModel: currentState.aiModel,
       });
 
       setProjectState((prev) => ({
@@ -396,8 +526,8 @@ export function App() {
 
       showToast(
         'success',
-        `Expanded "${result.appName || projectState.appName}" into a complete product vision and ${
-          result.suggestedFeatures?.length || projectState.features.length
+        `Expanded "${result.appName || currentState.appName}" into a complete product vision and ${
+          result.suggestedFeatures?.length || currentState.features.length
         } user steps.`
       );
     } catch (err: any) {
@@ -525,8 +655,6 @@ export function App() {
     groundRules: projectState.groundRules,
   });
   const initialGrillFingerprintRef = useRef<string | null>(null);
-  const latestStateRef = useRef<ProjectState>(projectState);
-  latestStateRef.current = projectState;
 
   useEffect(() => {
     if (initialGrillFingerprintRef.current === null) {
@@ -878,51 +1006,98 @@ export function App() {
         {/* Zone 2: Concise navigation links + HelpBadge */}
         <nav
           aria-label="Workstation Sections"
-          className="hidden md:flex items-center gap-5 text-xs font-medium text-[#CBC3D7]"
+          className="hidden lg:flex items-center gap-4 text-xs font-medium text-[#CBC3D7]"
         >
-          <a
-            href="#deck-manifest"
-            className="hover:text-white hover:underline underline-offset-4 transition-colors whitespace-nowrap shrink-0"
+          <button
+            type="button"
+            onClick={() => setActivePage('manifest')}
+            className={`hover:text-white transition-colors whitespace-nowrap cursor-pointer ${
+              activePage === 'manifest' ? 'text-white font-semibold underline underline-offset-4' : ''
+            }`}
           >
-            Manifest
-          </a>
-          <a
-            href="#deck-architecture"
+            01. Manifest
+          </button>
+          <button
+            type="button"
             onClick={() => {
               if (mode === 'simple') setMode('balanced');
+              setActivePage('architecture');
             }}
-            className="hover:text-white hover:underline underline-offset-4 transition-colors whitespace-nowrap shrink-0"
+            className={`hover:text-white transition-colors whitespace-nowrap cursor-pointer ${
+              activePage === 'architecture' ? 'text-white font-semibold underline underline-offset-4' : ''
+            }`}
           >
-            Ground Rules
-          </a>
-          <a
-            href="#deck-grill"
+            02. Rules
+          </button>
+          <button
+            type="button"
             onClick={() => {
               if (mode === 'simple') setMode('balanced');
+              setActivePage('grill');
             }}
-            className="hover:text-white hover:underline underline-offset-4 transition-colors whitespace-nowrap shrink-0"
+            className={`hover:text-white transition-colors whitespace-nowrap cursor-pointer ${
+              activePage === 'grill' ? 'text-white font-semibold underline underline-offset-4' : ''
+            }`}
           >
-            Grill Me
-          </a>
-          <a
-            href="#deck-tasks"
-            onClick={() => setMode('pro')}
-            className="hover:text-white hover:underline underline-offset-4 transition-colors whitespace-nowrap shrink-0"
+            03. Grill Me
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setMode('pro');
+              setActivePage('tasks');
+            }}
+            className={`hover:text-white transition-colors whitespace-nowrap cursor-pointer ${
+              activePage === 'tasks' ? 'text-white font-semibold underline underline-offset-4' : ''
+            }`}
           >
-            Pro Rules
-          </a>
-          <a
-            href="#deck-workflow"
-            className="hover:text-white hover:underline underline-offset-4 transition-colors whitespace-nowrap shrink-0"
+            04. Pro Tasks
+          </button>
+          <button
+            type="button"
+            onClick={() => setActivePage('stitch')}
+            className={`hover:text-white transition-colors whitespace-nowrap cursor-pointer ${
+              activePage === 'stitch' ? 'text-white font-semibold underline underline-offset-4' : ''
+            }`}
           >
-            Workflow & Stitch
-          </a>
-          <a
-            href="#deck-exporter"
-            className="hover:text-white hover:underline underline-offset-4 transition-colors whitespace-nowrap shrink-0"
+            05. Stitch UI
+          </button>
+          <button
+            type="button"
+            onClick={() => setActivePage('build-workflow')}
+            className={`hover:text-white transition-colors whitespace-nowrap cursor-pointer ${
+              activePage === 'build-workflow' ? 'text-white font-semibold underline underline-offset-4' : ''
+            }`}
           >
-            Exporters
-          </a>
+            06. Stage 2
+          </button>
+          <button
+            type="button"
+            onClick={() => setActivePage('local-agents')}
+            className={`hover:text-white transition-colors whitespace-nowrap cursor-pointer ${
+              activePage === 'local-agents' ? 'text-white font-semibold underline underline-offset-4' : ''
+            }`}
+          >
+            07. Local AI
+          </button>
+          <button
+            type="button"
+            onClick={() => setActivePage('multi-agent')}
+            className={`hover:text-white transition-colors whitespace-nowrap cursor-pointer ${
+              activePage === 'multi-agent' ? 'text-white font-semibold underline underline-offset-4' : ''
+            }`}
+          >
+            08. Multi-Agent
+          </button>
+          <button
+            type="button"
+            onClick={() => setActivePage('exporter')}
+            className={`hover:text-white transition-colors whitespace-nowrap cursor-pointer ${
+              activePage === 'exporter' ? 'text-white font-semibold underline underline-offset-4' : ''
+            }`}
+          >
+            09. Exporters
+          </button>
           <HelpBadge tooltipKey="header-nav" side="bottom" />
         </nav>
 
@@ -1073,6 +1248,81 @@ export function App() {
       <main className="flex-1 max-w-[1440px] w-full mx-auto px-5 py-5 grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
         {/* Column 1: Left Recent Blueprints & Mode Guide Sidebar (3 cols on lg) */}
         <aside className="lg:col-span-3 space-y-4 lg:sticky lg:top-20">
+          {/* Workstation Screen Navigator (Screens 01–09) */}
+          <div className="pf-card rounded-2xl p-4 space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-white">
+                <Layers className="w-3.5 h-3.5 text-[#A78BFA]" />
+                <span>Workstation Screens</span>
+                <HelpBadge tooltipKey="page-nav" />
+              </span>
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-[#8B5CF6]/20 border border-[#8B5CF6]/40 text-[#D0BCFF]">
+                {currentPageIndex + 1} of 9
+              </span>
+            </div>
+            <p className="text-[11px] text-[#CBC3D7] leading-relaxed">
+              Every phase lives on its own dedicated screen:
+            </p>
+            <div className="space-y-1.5">
+              {WORKSTATION_PAGES.map((page) => {
+                const isActive = activePage === page.id;
+                const isHiddenByMode =
+                  (page.minMode === 'balanced' && mode === 'simple') ||
+                  (page.minMode === 'pro' && mode !== 'pro');
+
+                return (
+                  <button
+                    key={page.id}
+                    type="button"
+                    onClick={() => {
+                      if (page.minMode === 'balanced' && mode === 'simple') {
+                        setMode('balanced');
+                      } else if (page.minMode === 'pro' && mode !== 'pro') {
+                        setMode('pro');
+                      }
+                      setActivePage(page.id);
+                    }}
+                    className={`w-full px-2.5 py-2 rounded-xl text-left transition-all flex items-center justify-between gap-2 cursor-pointer ${
+                      isActive
+                        ? 'bg-[#8B5CF6]/25 border border-[#8B5CF6] text-white shadow-[0_0_12px_rgba(139,92,246,0.25)]'
+                        : 'bg-[#0F0C1B]/60 border border-[#C084FC]/10 text-[#CBC3D7] hover:border-[#C084FC]/30 hover:text-white'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span
+                        className={`w-5 h-5 rounded-md flex items-center justify-center text-[10px] font-mono font-bold shrink-0 ${
+                          isActive
+                            ? 'bg-[#8B5CF6] text-white'
+                            : 'bg-[#1D1929] text-[#A78BFA] border border-[#C084FC]/20'
+                        }`}
+                      >
+                        {page.pageNumber}
+                      </span>
+                      <div className="min-w-0">
+                        <div className="text-xs font-medium truncate">
+                          {page.shortTitle}
+                        </div>
+                        {page.badge && (
+                          <div className="text-[10px] text-[#A78BFA] truncate">
+                            {page.badge}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      {isHiddenByMode && (
+                        <span className="text-[9.5px] font-mono px-1.5 py-0.5 rounded bg-white/5 text-[#958EA0]">
+                          {page.minMode}+
+                        </span>
+                      )}
+                      <HelpBadge tooltipKey={page.tooltipKey} side="right" />
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
           {/* Starter Blueprints (Most Recent 3) */}
           <div className="pf-card rounded-2xl p-4 space-y-3.5">
             <div className="flex items-center justify-between gap-2">
@@ -1230,76 +1480,151 @@ export function App() {
           </div>
         </aside>
 
-        {/* Column 2: Central Stacked Workstation Decks (5 cols on lg) */}
-        <div className="lg:col-span-5 space-y-5">
-          {/* Deck 1: Always visible in Simple, Balanced, and Pro */}
-          <ManifestDeck
-            state={projectState}
-            onUpdate={setProjectState}
-            onFleshOutIdea={handleFleshOutIdea}
-            onRandomAiIdea={handleRandomAiIdea}
-            onFillField={handleFillField}
-            fillingField={fillingField}
-            isExpanding={isExpanding}
-            isGeneratingRandom={isGeneratingRandom}
-            canUndoExpansion={Boolean(previousSnapshot)}
-            onUndoExpansion={handleUndoSnapshot}
-            onMiniGrill={handleMiniGrill}
-            miniGrillLoadingTopic={miniGrillLoadingTopic}
-            miniGrillQuestions={miniGrillQuestions}
-            onSelectMiniGrillAnswer={handleSelectMiniGrillAnswer}
-            onDismissMiniGrill={handleDismissMiniGrill}
-            onRecommendLanguage={handleRecommendLanguage}
-            isRecommendingLanguage={isRecommendingLanguage}
-            languageAdvice={languageAdvice}
-          />
+        {/* Column 2: Central Dedicated Workstation Screen (5 cols on lg) */}
+        <div className="lg:col-span-5 space-y-4">
+          {/* Top Screen Pagination & Fast Step Navigation Bar */}
+          <div className="pf-card rounded-2xl p-3 sm:p-4 space-y-2.5">
+            <div className="flex flex-wrap items-center justify-between gap-2.5">
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <button
+                  type="button"
+                  onClick={goToPrevPage}
+                  disabled={currentPageIndex === 0}
+                  className="pf-btn-secondary inline-flex items-center gap-1 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                  aria-label="Previous Screen"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Prev</span>
+                </button>
 
-          {/* Simple Mode Upgrade Prompt Banner */}
-          {mode === 'simple' && (
-            <div className="pf-card rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3">
-              <div className="space-y-0.5">
-                <div className="text-xs font-semibold text-white">
-                  Want to configure Offline Rules or run the Dynamic "Grill Me" Interview?
+                {/* Step Pills 01-09 */}
+                <div className="flex items-center gap-1 overflow-x-auto py-0.5">
+                  {WORKSTATION_PAGES.map((page) => (
+                    <button
+                      key={page.id}
+                      type="button"
+                      onClick={() => {
+                        if (page.minMode === 'balanced' && mode === 'simple') setMode('balanced');
+                        if (page.minMode === 'pro' && mode !== 'pro') setMode('pro');
+                        setActivePage(page.id);
+                      }}
+                      className={`w-7 h-7 rounded-lg text-[11px] font-mono font-semibold transition-all cursor-pointer flex items-center justify-center shrink-0 ${
+                        activePage === page.id
+                          ? 'bg-[#8B5CF6] text-white shadow-md'
+                          : 'bg-[#0F0C1B] border border-[#C084FC]/15 text-[#CBC3D7] hover:text-white hover:border-[#C084FC]/35'
+                      }`}
+                      title={page.title}
+                    >
+                      {page.pageNumber}
+                    </button>
+                  ))}
                 </div>
-                <div className="text-[11px] text-[#CBC3D7]">
-                  Your Simple Mode inputs are already saved—switch to Balanced or Pro mode anytime.
-                </div>
+
+                <button
+                  type="button"
+                  onClick={goToNextPage}
+                  disabled={currentPageIndex === WORKSTATION_PAGES.length - 1}
+                  className="pf-btn-secondary inline-flex items-center gap-1 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                  aria-label="Next Screen"
+                >
+                  <span className="hidden sm:inline">Next</span>
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={() => setMode('balanced')}
-                className="pf-btn-secondary px-3.5 py-1.5 rounded-full text-xs font-medium whitespace-nowrap shrink-0 cursor-pointer"
-              >
-                Switch to Balanced Mode
-              </button>
+
+              <div className="flex items-center gap-1.5 shrink-0">
+                <span className="text-[11px] font-mono text-[#D0BCFF] px-2 py-0.5 rounded-full bg-[#8B5CF6]/20 border border-[#8B5CF6]/40">
+                  Screen {currentPageConfig.pageNumber} of 09
+                </span>
+                <HelpBadge tooltipKey={currentPageConfig.tooltipKey} />
+              </div>
             </div>
+
+            <div className="pt-2 border-t border-[#C084FC]/15 flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <h2 className="text-sm font-semibold text-white truncate">
+                  {currentPageConfig.title}
+                </h2>
+                <p className="text-[11px] text-[#A78BFA] truncate">
+                  {currentPageConfig.badge}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Simple Mode Switch Banner for higher screens */}
+          {mode === 'simple' &&
+            (activePage === 'architecture' || activePage === 'grill' || activePage === 'tasks') && (
+              <div className="pf-card rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3">
+                <div className="space-y-0.5">
+                  <div className="text-xs font-semibold text-white">
+                    This screen is typically auto-managed in Simple Mode.
+                  </div>
+                  <div className="text-[11px] text-[#CBC3D7]">
+                    Switch to Balanced or Pro Mode to customize ground rules and pro architect controls.
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setMode(activePage === 'tasks' ? 'pro' : 'balanced')}
+                  className="pf-btn-secondary px-3.5 py-1.5 rounded-full text-xs font-medium whitespace-nowrap shrink-0 cursor-pointer"
+                >
+                  Switch to {activePage === 'tasks' ? 'Pro' : 'Balanced'} Mode
+                </button>
+              </div>
+            )}
+
+          {/* Screen 01: Manifest & Plain Language Ideas (Q1-Q4) */}
+          {activePage === 'manifest' && (
+            <ManifestDeck
+              state={projectState}
+              onUpdate={setProjectState}
+              onFleshOutIdea={handleFleshOutIdea}
+              onRandomAiIdea={handleRandomAiIdea}
+              onFillField={handleFillField}
+              fillingField={fillingField}
+              isExpanding={isExpanding}
+              isGeneratingRandom={isGeneratingRandom}
+              canUndoExpansion={Boolean(previousSnapshot)}
+              onUndoExpansion={handleUndoSnapshot}
+              onMiniGrill={handleMiniGrill}
+              miniGrillLoadingTopic={miniGrillLoadingTopic}
+              miniGrillQuestions={miniGrillQuestions}
+              onSelectMiniGrillAnswer={handleSelectMiniGrillAnswer}
+              onDismissMiniGrill={handleDismissMiniGrill}
+              onRecommendLanguage={handleRecommendLanguage}
+              isRecommendingLanguage={isRecommendingLanguage}
+              languageAdvice={languageAdvice}
+            />
           )}
 
-          {/* Deck 2 & Deck 3: Visible in Balanced and Pro Modes */}
-          {(mode === 'balanced' || mode === 'pro') && (
-            <>
-              <ArchitectureDeck
-                state={projectState}
-                onUpdate={setProjectState}
-                onMiniGrill={handleMiniGrill}
-                miniGrillLoadingTopic={miniGrillLoadingTopic}
-                miniGrillQuestions={miniGrillQuestions}
-                onSelectMiniGrillAnswer={handleSelectMiniGrillAnswer}
-                onDismissMiniGrill={handleDismissMiniGrill}
-              />
-              <GrillDeck
-                state={projectState}
-                onUpdate={setProjectState}
-                onGrillMe={handleGrillMe}
-                isGrilling={isGrilling}
-                isAutoRefreshing={isAutoRefreshingGrill}
-                lastSyncedAt={lastGrillSyncedAt}
-              />
-            </>
+          {/* Screen 02: Everyday Ground Rules & Quality Guardrails */}
+          {activePage === 'architecture' && (
+            <ArchitectureDeck
+              state={projectState}
+              onUpdate={setProjectState}
+              onMiniGrill={handleMiniGrill}
+              miniGrillLoadingTopic={miniGrillLoadingTopic}
+              miniGrillQuestions={miniGrillQuestions}
+              onSelectMiniGrillAnswer={handleSelectMiniGrillAnswer}
+              onDismissMiniGrill={handleDismissMiniGrill}
+            />
           )}
 
-          {/* Deck 4: Visible in Pro Mode */}
-          {mode === 'pro' && (
+          {/* Screen 03: Dynamic Grill Me Clarification Interview (Q1-Q8) */}
+          {activePage === 'grill' && (
+            <GrillDeck
+              state={projectState}
+              onUpdate={setProjectState}
+              onGrillMe={handleGrillMe}
+              isGrilling={isGrilling}
+              isAutoRefreshing={isAutoRefreshingGrill}
+              lastSyncedAt={lastGrillSyncedAt}
+            />
+          )}
+
+          {/* Screen 04: Pro Architect Controls, Task Slicing & AGENTS.md Sections */}
+          {activePage === 'tasks' && (
             <TasksDeck
               state={projectState}
               onUpdate={setProjectState}
@@ -1313,26 +1638,120 @@ export function App() {
             />
           )}
 
-          {/* Deck 5: Guided Build Workflow & Stitch UI Studio */}
-          <WorkflowDeck
-            state={projectState}
-            onUpdate={setProjectState}
-            onFillField={handleFillField}
-            fillingField={fillingField}
-            onMiniGrill={handleMiniGrill}
-            miniGrillLoadingTopic={miniGrillLoadingTopic}
-            onStitchSurprise={handleStitchSurprise}
-            isGeneratingSurprise={isGeneratingSurprise}
-            onOpenSaveModal={() => setSaveModalOpen(true)}
-            onUpdateVariable={handleUpdateVariable}
-          />
+          {/* Screen 05: Guided Build Workflow & Google Stitch UI Studio (Stages 1a-1b) */}
+          {activePage === 'stitch' && (
+            <StitchStudioDeck
+              state={projectState}
+              onUpdate={setProjectState}
+              onFillField={handleFillField}
+              fillingField={fillingField}
+              onMiniGrill={handleMiniGrill}
+              miniGrillLoadingTopic={miniGrillLoadingTopic}
+              onStitchSurprise={handleStitchSurprise}
+              isGeneratingSurprise={isGeneratingSurprise}
+            />
+          )}
 
-          {/* Deck 6: Multi-Platform Exporter */}
-          <ExporterDeck
-            state={projectState}
-            onOpenSaveModal={() => setSaveModalOpen(true)}
-            onUpdateVariable={handleUpdateVariable}
-          />
+          {/* Screen 06: Stage 2 — Next Build App & Full Workflow Plan */}
+          {activePage === 'build-workflow' && (
+            <BuildStageDeck
+              state={projectState}
+              onUpdate={setProjectState}
+              onFillField={handleFillField}
+              fillingField={fillingField}
+              onMiniGrill={handleMiniGrill}
+              miniGrillLoadingTopic={miniGrillLoadingTopic}
+              miniGrillQuestions={miniGrillQuestions}
+              onSelectMiniGrillAnswer={handleSelectMiniGrillAnswer}
+              onDismissMiniGrill={handleDismissMiniGrill}
+              onOpenSaveModal={() => setSaveModalOpen(true)}
+            />
+          )}
+
+          {/* Screen 07: Optional · Local AI Agents (Ollama / Continue) */}
+          {activePage === 'local-agents' && (
+            <LocalAgentsDeck
+              state={projectState}
+              onUpdate={setProjectState}
+              onFillField={handleFillField}
+              fillingField={fillingField}
+              onMiniGrill={handleMiniGrill}
+              miniGrillLoadingTopic={miniGrillLoadingTopic}
+              miniGrillQuestions={miniGrillQuestions}
+              onSelectMiniGrillAnswer={handleSelectMiniGrillAnswer}
+              onDismissMiniGrill={handleDismissMiniGrill}
+            />
+          )}
+
+          {/* Screen 08: Optional · Multi-Agent Coordination (COLLABORATION.md) */}
+          {activePage === 'multi-agent' && (
+            <MultiAgentDeck
+              state={projectState}
+              onUpdate={setProjectState}
+              onFillField={handleFillField}
+              fillingField={fillingField}
+              onMiniGrill={handleMiniGrill}
+              miniGrillLoadingTopic={miniGrillLoadingTopic}
+              miniGrillQuestions={miniGrillQuestions}
+              onSelectMiniGrillAnswer={handleSelectMiniGrillAnswer}
+              onDismissMiniGrill={handleDismissMiniGrill}
+            />
+          )}
+
+          {/* Screen 09: Targeted Multi-Platform Contract Exporter */}
+          {activePage === 'exporter' && (
+            <ExporterDeck
+              state={projectState}
+              onOpenSaveModal={() => setSaveModalOpen(true)}
+              onUpdateVariable={handleUpdateVariable}
+              onMiniGrill={handleMiniGrill}
+              miniGrillLoadingTopic={miniGrillLoadingTopic}
+              miniGrillQuestions={miniGrillQuestions}
+              onSelectMiniGrillAnswer={handleSelectMiniGrillAnswer}
+              onDismissMiniGrill={handleDismissMiniGrill}
+            />
+          )}
+
+          {/* Bottom Screen Pagination Footer */}
+          <div className="pf-card rounded-2xl p-3.5 sm:p-4 flex flex-wrap items-center justify-between gap-3">
+            {prevPage ? (
+              <button
+                type="button"
+                onClick={goToPrevPage}
+                className="pf-btn-secondary inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-medium cursor-pointer"
+              >
+                <ChevronLeft className="w-4 h-4" />
+                <span>Back: {prevPage.shortTitle}</span>
+              </button>
+            ) : (
+              <div />
+            )}
+
+            <div className="text-xs font-mono text-[#CBC3D7] flex items-center gap-1.5">
+              <span>Screen {currentPageConfig.pageNumber} of 09:</span>
+              <span className="text-[#8B5CF6] font-semibold">{currentPageConfig.shortTitle}</span>
+            </div>
+
+            {nextPage ? (
+              <button
+                type="button"
+                onClick={goToNextPage}
+                className="pf-btn-primary inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold cursor-pointer"
+              >
+                <span>Next: {nextPage.shortTitle}</span>
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setSaveModalOpen(true)}
+                className="pf-btn-primary inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold cursor-pointer"
+              >
+                <HardDrive className="w-4 h-4" />
+                <span>Save Blueprint & Export</span>
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Column 3: Right Inspector Panel — Live Specification & Platform Compiler (4 cols on lg) */}

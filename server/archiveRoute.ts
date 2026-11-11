@@ -72,13 +72,13 @@ export function registerArchiveRoutes(app: Application) {
       crc = (crc ^ (-1)) >>> 0;
 
       const time = 0;
-      const date = 0;
+      const date = 0x0021;
 
       // Local File Header
       const lfh = Buffer.alloc(30);
       lfh.writeUInt32LE(0x04034b50, 0); // Signature
       lfh.writeUInt16LE(10, 4); // Version needed to extract
-      lfh.writeUInt16LE(0, 6); // General purpose bit flag
+      lfh.writeUInt16LE(0x0800, 6); // General purpose bit flag (UTF-8)
       lfh.writeUInt16LE(0, 8); // Compression method (0 = store)
       lfh.writeUInt16LE(time, 10); // Last mod file time
       lfh.writeUInt16LE(date, 12); // Last mod file date
@@ -96,7 +96,7 @@ export function registerArchiveRoutes(app: Application) {
       cdh.writeUInt32LE(0x02014b50, 0); // Signature
       cdh.writeUInt16LE(0, 4); // Version made by
       cdh.writeUInt16LE(10, 6); // Version needed to extract
-      cdh.writeUInt16LE(0, 8); // General purpose bit flag
+      cdh.writeUInt16LE(0x0800, 8); // General purpose bit flag (UTF-8)
       cdh.writeUInt16LE(0, 10); // Compression method
       cdh.writeUInt16LE(time, 12); // Last mod file time
       cdh.writeUInt16LE(date, 14); // Last mod file date

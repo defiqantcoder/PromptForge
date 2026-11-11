@@ -1,6 +1,6 @@
 [package]
-name = "app"
-version = "0.3.0"
+name = "promptforge"
+version = "0.3.1"
 description = "A Tauri App"
 authors = ["you"]
 license = ""
@@ -9,7 +9,7 @@ edition = "2024"
 rust-version = "1.90"
 
 [lib]
-name = "app_lib"
+name = "promptforge_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]

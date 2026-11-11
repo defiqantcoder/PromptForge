@@ -55,7 +55,8 @@ export type FillableFieldId =
   | 'stitchScreenNotes'
   | 'uploadedResultNotes'
   | 'localAgentNotes'
-  | 'multiAgentProtocol';
+  | 'multiAgentProtocol'
+  | 'workflowPlan';
 
 export type MiniGrillTopic =
   | 'idea'
@@ -63,7 +64,22 @@ export type MiniGrillTopic =
   | 'groundRules'
   | 'codingLanguage'
   | 'proArch'
-  | 'stitchUi';
+  | 'stitchUi'
+  | 'workflow'
+  | 'localAgents'
+  | 'multiAgent'
+  | 'exporter';
+
+export type WorkstationPageId =
+  | 'manifest'
+  | 'architecture'
+  | 'grill'
+  | 'tasks'
+  | 'stitch'
+  | 'build-workflow'
+  | 'local-agents'
+  | 'multi-agent'
+  | 'exporter';
 
 export interface GroundRules {
   offlineFirst: boolean;
@@ -162,6 +178,8 @@ export interface ProjectState {
   workflowProgress?: WorkflowProgress;
   localAgents?: LocalAgentsConfig;
   multiAgent?: MultiAgentConfig;
+  workflowPlan?: string;
+  suggestedAppOverride?: ExportPlatformId;
   proConfig: ProConfiguration;
   lastUpdated: string;
 }

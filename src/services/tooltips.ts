@@ -13,7 +13,7 @@ export const TOOLTIP_DICTIONARY: Record<string, TooltipEntry> = {
   },
   'mode-balanced': {
     title: 'Balanced Mode (Guided Builder)',
-    description: 'Adds everyday ground rules like offline support and speed alongside the 3-question "Grill Me" clarification interview.',
+    description: 'Adds everyday ground rules like offline support and speed alongside the 5-question dynamic Grill Me clarification interview.',
     aiUsage: 'Helps AI coding assistants avoid common assumptions about internet access, privacy, and screen speed.',
   },
   'mode-pro': {
@@ -96,12 +96,12 @@ export const TOOLTIP_DICTIONARY: Record<string, TooltipEntry> = {
   // Deck 3: Grill Me Socratic Interview
   'deck-grill': {
     title: '03. "Grill Me" Clarification Interview',
-    description: 'Acts like a thoughtful product coach that spots missing details in your idea and asks 3 quick multiple-choice questions.',
-    aiUsage: 'Your selected answers eliminate guesswork and fold directly into the compiled specification and prompt contracts.',
+    description: 'Acts like a thoughtful product coach that spots missing details in your idea and runs a 5-question dynamic Grill Me multiple-choice interview.',
+    aiUsage: 'Your selected answers eliminate guesswork and fold directly into the compiled specification and prompt contracts across ManifestDeck, ArchitectureDeck, GrillDeck, TasksDeck, WorkflowDeck, and ExporterDeck.',
   },
   'action-grill-me': {
-    title: 'Generate 3 Clarification Questions',
-    description: 'Scans your current app idea and steps to generate 3 tailored multiple-choice questions with recommended defaults.',
+    title: 'Generate 5 Clarification Questions',
+    description: 'Scans your current app idea and steps to generate a 5-question dynamic Grill Me interview with recommended defaults.',
     aiUsage: 'Closes edge-case gaps before you hand the project off to Google Stitch, AI Studio, or Antigravity.',
   },
 
@@ -322,5 +322,75 @@ export const TOOLTIP_DICTIONARY: Record<string, TooltipEntry> = {
     title: 'Local AI Agents (Ollama + Continue)',
     description: 'Generates offline-ready setup commands, Modelfile hints, and Continue prompt rules for running coding tasks locally.',
     aiUsage: 'Lets you pair your PromptForge specs with local open-weight coder models via http://127.0.0.1:11434.',
+  },
+  'page-nav': {
+    title: 'Screen-by-Screen Navigation',
+    description: 'Jump directly to any of the 9 dedicated workstation screens, from Plain-Language Ideas to Ground Rules, Stitch Studio, and Multi-Platform Exporters.',
+    aiUsage: 'Keeps all your inputs organized per screen and persists state non-destructively as you move between screens.',
+  },
+  'page-manifest': {
+    title: 'Screen 01 · Manifest & Ideas (Q1–Q4)',
+    description: 'Core project identity: App Name, One-Sentence Summary, Big Idea (Q1), Target Platform (Q2), Coding Language Advisor (Q3), and Main Features (Q4).',
+    aiUsage: 'Populates Product Objective, Target Users, and core requirements across all compiled files.',
+  },
+  'page-architecture': {
+    title: 'Screen 02 · Everyday Ground Rules',
+    description: 'Everyday quality guardrails: Offline-First, Screen Speed (<200ms), Local Device Privacy, and Dark Theme default.',
+    aiUsage: 'Injected into Section 6, 7, and 8 of AGENTS.md and compiled EARS behavioral rules.',
+  },
+  'page-grill': {
+    title: 'Screen 03 · Dynamic "Grill Me" (Q1–Q8)',
+    description: 'Socratic product interrogation: 8 deep clarification questions covering data, UX edge cases, and architecture decisions.',
+    aiUsage: 'Eliminates ambiguities before code generation; folded into spec.md and AGENTS.md.',
+  },
+  'page-tasks': {
+    title: 'Screen 04 · Pro Architect Controls',
+    description: 'Pro AGENTS.md overrides, tech stack, architecture style, testing strategy, security boundary, HITL/AFK slicing, and dynamic tokens.',
+    aiUsage: 'Configures deterministic constraints for autonomous AI coding agents.',
+  },
+  'page-stitch': {
+    title: 'Screen 05 · Google Stitch UI Studio',
+    description: 'Spacious dedicated visual studio: Stages 1a (Design UI First with AI Surprise Me & Reference Images) & 1b (Upload Stitch Result & Multi-Screen Prompts).',
+    aiUsage: 'Locks visual layout, component states, and WCAG AA contrast tokens into specifications.',
+  },
+  'page-build-workflow': {
+    title: 'Screen 06 · Stage 2: Next Build App & Workflow Plan',
+    description: 'Dynamic next build tool recommendation with user override options, and a comprehensive, editable end-to-end workflow execution plan.',
+    aiUsage: 'Generates handoff prompts tailored to your chosen tool and compiles the workflow plan into plan.md and AGENTS.md.',
+  },
+  'page-local-agents': {
+    title: 'Screen 07 · Optional Local AI (Ollama / Continue)',
+    description: 'Private offline coding assistance using local open-weight models via Ollama and Continue IDE rules (.continuerules).',
+    aiUsage: 'Lets you run code generation and refactoring 100% locally with zero cloud API keys.',
+  },
+  'page-multi-agent': {
+    title: 'Screen 08 · Multi-Agent Coordination',
+    description: 'Declare file ownership lanes (Work-On vs. Stay-Away paths) and shared merge handoff protocols in COLLABORATION.md.',
+    aiUsage: 'Prevents merge collisions and race conditions when multiple autonomous agents collaborate.',
+  },
+  'page-exporter': {
+    title: 'Screen 09 · Multi-Platform Exporters',
+    description: 'Ready-to-copy prompt contracts formatted for Google Stitch, AI Studio, Antigravity, Copilot, Canvas, and Local Ollama.',
+    aiUsage: 'Tailored for each tool’s strengths and context window capabilities.',
+  },
+  'workflow-override-app': {
+    title: 'Choose Next Builder App',
+    description: 'Override the AI recommendation and select which tool you want to build with next (AI Studio, Antigravity, Copilot, Canvas, or Local Ollama).',
+    aiUsage: 'PromptForge instantly recalculates the handoff prompt and workflow roadmap to fit your selected tool.',
+  },
+  'workflow-full-plan': {
+    title: 'Full End-to-End Implementation Plan',
+    description: 'A comprehensive step-by-step roadmap taking your app from Stitch UI through scaffolding, state management, testing, and release.',
+    aiUsage: 'Compiled into Section 10 of plan.md and Section 9 of AGENTS.md so downstream builders execute in orderly phases.',
+  },
+  'workflow-freemium-stage3': {
+    title: 'Stage 3 Polish & Freemium Offline Alternative',
+    description: 'Stage 3 polish workflow or substitution with local open-weight Ollama models for completely free, offline-capable execution.',
+    aiUsage: 'Ensures the project can be built and maintained without ongoing cloud subscription costs.',
+  },
+  'rule-recommend-ai': {
+    title: 'Recommend Rules with AI',
+    description: 'Analyzes your app idea, device, features, and language to recommend the most sensible everyday ground rules.',
+    aiUsage: 'Automatically flips the 4 guardrail toggles to optimal defaults for your specific project.',
   },
 };

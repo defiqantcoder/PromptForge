@@ -8,7 +8,7 @@ import dotenv from 'dotenv';
 import { GoogleGenAI, ThinkingLevel, Type, type GenerateContentParameters } from '@google/genai';
 import { fileURLToPath } from 'url';
 import { registerSpecValidateRoute } from './server/specValidateRoute.js';
-import { registerArchiveRoutes } from './server/archiveRoute.ts';
+import { registerArchiveRoutes } from './server/archiveRoute.js';
 
 dotenv.config();
 
@@ -423,7 +423,7 @@ Include:
     await executeGeminiJsonRoute(
       {
         model: aiModelConfig.model,
-        contents: `Analyze ALL current entries in this application specification and generate 5 sharp, friendly multiple-choice clarification questions ("Grill Me") that dynamically adapt to what the user has already entered and uncover remaining missing details, edge cases, data storage, onboarding, error states, or UX choices.
+        contents: `Analyze ALL current entries in this application specification and generate 8 sharp, friendly multiple-choice clarification questions ("Grill Me") that dynamically adapt to what the user has already entered and uncover remaining missing details, edge cases, data storage, onboarding, error states, or UX choices.
 
 App Name: ${appName || 'Untitled App'}
 Tagline: ${tagline || 'None yet'}
@@ -436,7 +436,7 @@ Previous Clarifications (KEEP & DO NOT REPEAT THESE TOPICS OR QUESTIONS): ${JSON
 Pro Config: ${JSON.stringify(proConfig || {})}
 Stitch UI Direction: ${JSON.stringify(stitchUi ? { visualDirection: stitchUi.visualDirection, uploadedResultName: stitchUi.uploadedResultName } : {})}
 
-Rules for the 5 questions:
+Rules for the 8 questions:
 - Write questions in plain, everyday English (no intimidating jargon).
 - Strictly avoid repeating any topic or question already covered in Previous Clarifications—dig into NEW unaddressed areas.
 - Adapt directly to the user's current features, platform, coding language, and prior answers.
@@ -445,7 +445,7 @@ Rules for the 5 questions:
 - Set selectedAnswer to that recommended first option.`,
         config: {
           systemInstruction:
-            'You are a Socratic product coach. Return exactly 5 fresh, non-duplicate high-value multiple-choice questions in valid JSON.',
+            'You are a Socratic product coach. Return exactly 8 fresh, non-duplicate high-value multiple-choice questions in valid JSON.',
           thinkingConfig: aiModelConfig.thinkingConfig,
           responseMimeType: 'application/json',
           responseSchema: {
@@ -563,6 +563,11 @@ Rules for the 5 questions:
       instruction:
         'Write clear coordination rules in "value" for COLLABORATION.md explaining how parallel agents claim lanes, avoid file collisions, and signal handoffs.',
     },
+    workflowPlan: {
+      label: 'Full Implementation Workflow Plan',
+      instruction:
+        'Synthesize a clear, practical, numbered step-by-step end-to-end execution and handoff workflow plan in "value" taking the project from Google Stitch UI through the chosen next builder app, testing, and deployment using ALL other filled fields.',
+    },
   };
 
   app.post('/api/gemini/fill-field', requireGeminiKey, async (req, res) => {
@@ -630,6 +635,10 @@ Return valid JSON with "value" (and "secondaryValue" only when Target Field is "
     codingLanguage: 'Clarify developer ergonomics, target ecosystem, or deployment priorities to refine coding language notes.',
     proArch: 'Clarify technical architecture, testing coverage, or security constraints for AGENTS.md.',
     stitchUi: 'Grill the user specifically about visual UI design (layout density, navigation pattern, color mood, typography, and component style) using any attached reference images.',
+    workflow: 'Clarify build sequence, builder tool handoff requirements, and testing milestones for the implementation workflow.',
+    localAgents: 'Clarify local model inference parameters, Ollama context sizing, or offline privacy boundaries.',
+    multiAgent: 'Clarify file ownership boundaries, conflict avoidance protocols, and PR handoff criteria between parallel coding agents.',
+    exporter: 'Clarify custom prompt tokens, export file structure, or platform-specific prompt formatting preferences.',
   };
 
   app.post('/api/gemini/mini-grill', requireGeminiKey, async (req, res) => {

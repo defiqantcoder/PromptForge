@@ -74,12 +74,12 @@ Download the latest `.deb` or self-contained `.AppImage` from [GitHub Releases](
 
 - **Install or upgrade the `.deb` package** (automatically resolves and installs required system dependencies):
   ```bash
-  sudo apt install -y ./PromptForge_0.3.0_amd64.deb
+  sudo apt install -y ./PromptForge_0.3.1_amd64.deb
   ```
 - **Or run the standalone `.AppImage`** (bundles WebKit/GTK/GStreamer runtime libraries inside the image):
   ```bash
-  chmod +x PromptForge_0.3.0_amd64.AppImage
-  ./PromptForge_0.3.0_amd64.AppImage
+  chmod +x PromptForge_0.3.1_amd64.AppImage
+  ./PromptForge_0.3.1_amd64.AppImage
   ```
 
 ---

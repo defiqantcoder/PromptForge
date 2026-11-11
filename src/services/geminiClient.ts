@@ -151,6 +151,8 @@ export function buildFullProjectContext(state: ProjectState) {
     },
     localAgents: state.localAgents,
     multiAgent: state.multiAgent,
+    workflowPlan: state.workflowPlan ?? '',
+    suggestedAppOverride: state.suggestedAppOverride,
     workflowProgress: state.workflowProgress ?? {
       stitchDone: false,
       builderDone: false,

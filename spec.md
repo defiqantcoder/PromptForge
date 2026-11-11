@@ -10,8 +10,10 @@ Provide a fast, friendly, and jargon-free Ubuntu desktop application that allows
 ## 3. Core Capabilities
 - **Three-Tier Mode Switcher:**
   - Simple Mode: Strips technical fields down to three questions (Idea, Device, Main Steps) with AI auto-expansion.
-  - Balanced Mode: Adds everyday ground rules (offline-first, screen speed) and a 3-question clarification interview ("Grill Me").
+  - Balanced Mode: Adds everyday ground rules (offline-first, screen speed) and a 5-question dynamic Grill Me clarification interview.
   - Pro Mode: Exposes all 10 persistent instruction sections, task slicing strategies, and file outputs using strictly plain-language labels.
+- **Six Modular Workstation Decks:**
+  - Organizes the workflow into `ManifestDeck`, `ArchitectureDeck`, `GrillDeck`, `TasksDeck`, `WorkflowDeck` (Guided Build Workflow & Stitch UI Studio), and `ExporterDeck`.
 - **Universal Hover Explainer System:**
   - Moving the mouse over any section label, toggle switch, or action button reveals an instant, friendly callout card explaining what the item does and how the AI will use it.
 - **Gemini-Powered Inline Expansion:**
@@ -25,6 +27,6 @@ Provide a fast, friendly, and jargon-free Ubuntu desktop application that allows
 - When the user selects Simple Mode, the system shall hide all technical rule blocks and present only the three primary plain-language cards.
 - When the user hovers over any section badge for more than 100 milliseconds, the system shall display a floating explainer card containing a 2-sentence plain-English description.
 - When the user clicks the "Flesh Out My Idea" button with a valid API key, the system shall stream an expanded summary into the input field within 3 seconds.
-- When the user clicks "Grill Me", the system shall analyze the entered project requirements and return 3 targeted multiple-choice questions covering missing details.
+- When the user clicks "Grill Me", the system shall analyze the entered project requirements and return a 5-question dynamic Grill Me interview covering missing details.
 - When the user confirms saving files, the system shall write `AGENTS.md`, `spec.md`, `plan.md`, and `tasks.md` directly to the selected directory without opening browser download prompts.
 - When an API key call fails or times out after 30 seconds, the system shall surface a clear warning banner and retain all active form text.

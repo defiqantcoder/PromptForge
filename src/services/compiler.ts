@@ -268,6 +268,9 @@ export interface ProjectState {
 ${localAgentPlan}
 
 ${multiAgentPlan}
+
+### 10. End-to-End Implementation Workflow Plan
+${state.workflowPlan?.trim() || generateDefaultWorkflowPlan(state, state.suggestedAppOverride)}
 `;
 
   return interpolateVariables(raw, state.proConfig.templateVariables);
@@ -466,7 +469,7 @@ ${state.coreIdea || 'No core idea provided'}
 ## 3. Repository Structure
 - \`src/\` — Frontend application
   - \`components/\` — Modular UI blocks (\`Card\`, \`Tooltip\`, \`ModeSwitcher\`, \`CodeViewer\`, \`SaveModal\`)
-  - \`decks/\` — Workstation decks (\`ManifestDeck\`, \`ArchitectureDeck\`, \`GrillDeck\`, \`TasksDeck\`, \`ExporterDeck\`)
+  - \`decks/\` — Workstation decks (\`ManifestDeck\`, \`ArchitectureDeck\`, \`GrillDeck\`, \`TasksDeck\`, \`WorkflowDeck\`, \`ExporterDeck\`)
   - \`services/\` — Gemini API client, contract compilers, hover tooltip dictionary, and Tauri IPC bridge
   - \`types/\` — Strict TypeScript domain definitions (\`ProjectState\`, \`ComplexityMode\`, \`ClarificationItem\`)
 - \`src-tauri/\` — Native Rust desktop backend
@@ -536,12 +539,19 @@ fn validate_and_resolve_dir(target_dir: &str) -> Result<PathBuf, String> {
 }
 
 #[tauri::command]
-pub fn save_spec_bundle(
+fn save_spec_bundle(
     target_dir: String,
     files: HashMap<String, String>,
 ) -> Result<bool, String> {
     let resolved_dir = validate_and_resolve_dir(&target_dir)?;
-    let allowed_files = ["AGENTS.md", "spec.md", "plan.md", "tasks.md"];
+    let allowed_files = [
+        "AGENTS.md",
+        "spec.md",
+        "plan.md",
+        "tasks.md",
+        "COLLABORATION.md",
+        ".continuerules",
+    ];
 
     for (filename, content) in files {
         if !allowed_files.contains(&filename.as_str()) {
@@ -556,14 +566,14 @@ pub fn save_spec_bundle(
 }
 
 #[tauri::command]
-pub fn get_secure_key(service: String) -> Result<String, String> {
+fn get_secure_key(service: String) -> Result<String, String> {
     // Queries OS keyring or environment variable for service credential
     std::env::var("GEMINI_API_KEY")
         .map_err(|_| format!("No key configured in keyring for service: {}", service))
 }
 
 #[tauri::command]
-pub fn set_secure_key(_service: String, key: String) -> Result<(), String> {
+fn set_secure_key(_service: String, key: String) -> Result<(), String> {
     if key.trim().is_empty() {
         return Err("Key cannot be empty".to_string());
     }
@@ -861,6 +871,47 @@ export interface GuidedWorkflowRecommendation {
   polishPrompt: string;
 }
 
+export function generateDefaultWorkflowPlan(state: ProjectState, nextAppId?: ExportPlatformId): string {
+  const chosenApp =
+    nextAppId ||
+    state.suggestedAppOverride ||
+    (state.targetPlatform === 'desktop' || state.targetPlatform === 'cli' ? 'antigravity' : 'aistudio');
+  const appLabel =
+    chosenApp === 'antigravity'
+      ? 'Google Antigravity (AGY)'
+      : chosenApp === 'aistudio'
+      ? 'Google AI Studio'
+      : chosenApp === 'local-ollama'
+      ? 'Local AI (Ollama + Continue)'
+      : chosenApp === 'copilot'
+      ? 'GitHub Copilot'
+      : chosenApp === 'stitch'
+      ? 'Google Stitch'
+      : 'Gemini Canvas';
+
+  const safeFeatures = (state.features || []).filter(Boolean);
+  const sampleFeatures = safeFeatures.length > 0 ? safeFeatures.slice(0, 3).join(', ') : 'core capabilities';
+
+  return `1. **Phase 1 · UI Blueprint & Visual Tokens (Google Stitch)**
+   - Generate high-fidelity visual layout and component hierarchy using the Stitch UI Contract in Stage 1.
+   - Refine component hierarchy, WCAG AA contrast tokens, and responsive dimensions.
+   - Upload the resulting HTML, screenshot, or ZIP archive back to PromptForge to lock in visual requirements.
+
+2. **Phase 2 · Application Scaffolding & State Wiring (${appLabel})**
+   - Import the PromptForge specification bundle (AGENTS.md, spec.md, plan.md, tasks.md) into ${appLabel}.
+   - Scaffold the domain state models and core interactive handlers for: ${sampleFeatures}.
+   - Wire server/IPC boundaries and ensure form text persists non-destructively.
+
+3. **Phase 3 · Feature Slices & Behavioral Verification**
+   - Implement remaining feature requirements in ordered slices (${state.proConfig.taskSlicingMode}).
+   - Enforce ground rules: ${state.groundRules.offlineFirst ? 'Offline resilience' : 'Standard networking'}, ${state.groundRules.localPrivacy ? 'local key storage' : 'cloud storage'}, and sub-200ms latency budget.
+   - Run typechecks and unit tests to ensure zero regressions.
+
+4. **Phase 4 · Packaging, Polish & Freemium Offline Alternative**
+   - Execute production bundle build (${state.targetPlatform === 'desktop' ? 'Tauri native package' : 'production web bundle'}).
+   - For offline/free execution: toggle Local AI Agents (Ollama) to refactor code without paid API keys.`;
+}
+
 export function recommendBuildWorkflow(state: ProjectState): GuidedWorkflowRecommendation {
   const lang = state.codingLanguage || 'auto';
   const prefersAntigravity =
@@ -874,12 +925,24 @@ export function recommendBuildWorkflow(state: ProjectState): GuidedWorkflowRecom
     lang === 'dart-flutter' ||
     lang === 'csharp-dotnet';
 
-  const nextAppId: ExportPlatformId = prefersAntigravity ? 'antigravity' : 'aistudio';
+  const defaultNextAppId: ExportPlatformId = prefersAntigravity ? 'antigravity' : 'aistudio';
+  const nextAppId: ExportPlatformId = state.suggestedAppOverride || defaultNextAppId;
   const nextContract = compilePlatformContract(state, nextAppId);
   const polishAppId: ExportPlatformId = prefersAntigravity ? 'copilot' : 'canvas';
   const polishContract = compilePlatformContract(state, polishAppId);
 
-  const whyRecommended = prefersAntigravity
+  const APP_URLS: Record<ExportPlatformId, string> = {
+    antigravity: 'https://antigravity.google/',
+    aistudio: 'https://aistudio.google.com/',
+    copilot: 'https://github.com/features/copilot',
+    canvas: 'https://gemini.google.com/app',
+    'local-ollama': 'http://127.0.0.1:11434',
+    stitch: 'https://stitch.withgoogle.com/',
+  };
+
+  const whyRecommended = state.suggestedAppOverride
+    ? `User selected ${nextContract.title} as their preferred next build tool for this ${state.targetPlatform} project (${getCodingLanguageLabel(state)}).`
+    : prefersAntigravity
     ? `Google Antigravity (AGY) is best here because ${
         state.targetPlatform === 'desktop' || state.targetPlatform === 'cli'
           ? `you are building a ${state.targetPlatform} app`
@@ -892,10 +955,7 @@ export function recommendBuildWorkflow(state: ProjectState): GuidedWorkflowRecom
   return {
     nextAppId,
     nextAppName: nextContract.title,
-    nextAppUrl:
-      nextAppId === 'antigravity'
-        ? 'https://antigravity.google/'
-        : 'https://aistudio.google.com/',
+    nextAppUrl: APP_URLS[nextAppId] || 'https://antigravity.google/',
     whyRecommended,
     nextPrompt: nextContract.promptText,
     polishAppId,

@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::fs;
+use std::io::Write;
 use std::path::{Component, Path, PathBuf};
 
 pub(crate) fn expand_home_prefix(trimmed: &str, home_dir: Option<&Path>) -> Result<PathBuf, String> {
@@ -75,9 +76,20 @@ pub(crate) fn save_spec_bundle_to_dir(
         }
 
         // Write content to a temporary file in the canonical target directory.
+        // Remove any pre-existing .tmp file or symlink first and use create_new(true) to prevent symlink overwrite attacks.
         let temp_dest = resolved_dir.join(format!("{}.tmp", filename));
-        fs::write(&temp_dest, content.as_bytes())
-            .map_err(|e| format!("Failed to write {}: {}", temp_dest.display(), e))?;
+        let _ = fs::remove_file(&temp_dest);
+        let mut temp_file = fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&temp_dest)
+            .map_err(|e| format!("Failed to create {}: {}", temp_dest.display(), e))?;
+        temp_file
+            .write_all(content.as_bytes())
+            .map_err(|e| {
+                let _ = fs::remove_file(&temp_dest);
+                format!("Failed to write {}: {}", temp_dest.display(), e)
+            })?;
 
         // Atomically rename the temporary file to the final destination file using `fs::rename`.
         fs::rename(&temp_dest, &dest)

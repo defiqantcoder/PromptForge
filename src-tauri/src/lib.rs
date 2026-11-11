@@ -48,17 +48,6 @@ fn save_spec_bundle(
 }
 
 #[tauri::command]
-fn get_secure_key(service: String) -> Result<String, String> {
-    let service = validate_service_name(&service)?;
-    let entry = Entry::new("promptforge", service)
-        .map_err(|e| format!("Failed to access keyring: {}", e))?;
-
-    entry
-        .get_password()
-        .map_err(|_| format!("No key configured in keyring for service: {}", service))
-}
-
-#[tauri::command]
 fn set_secure_key(service: String, key: String) -> Result<(), String> {
     let service = validate_service_name(&service)?;
     if !is_valid_api_key(&key) {
@@ -111,11 +100,16 @@ async fn gemini_proxy_request(endpoint: String, payload: Value) -> Result<Value,
         .send()
         .await
         .map_err(|err| {
+            log::warn!(
+                "Gemini proxy error: {}",
+                gemini::sanitize_error_message(&err.to_string())
+            );
             if err.is_timeout() {
                 "Gemini request timed out after 30 seconds. Your existing project text is untouched—please try again."
                     .to_string()
             } else {
-                gemini::sanitize_error_message("Could not reach Gemini AI from the desktop client. Your active form text has been preserved.")
+                "Could not reach Gemini AI from the desktop client. Your active form text has been preserved."
+                    .to_string()
             }
         })?;
 
@@ -157,7 +151,6 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             save_spec_bundle,
-            get_secure_key,
             set_secure_key,
             has_secure_key,
             gemini_proxy_request

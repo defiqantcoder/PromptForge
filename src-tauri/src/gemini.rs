@@ -136,6 +136,10 @@ pub(crate) fn fill_field_guidance(field: &str) -> Result<(&'static str, &'static
             "Multi-Agent Coordination Protocol",
             "Write clear coordination rules in \"value\" for COLLABORATION.md explaining how parallel agents claim lanes, avoid file collisions, and signal handoffs.",
         )),
+        "workflowPlan" => Ok((
+            "Full Implementation Workflow Plan",
+            "Synthesize a clear, practical, numbered step-by-step end-to-end execution and handoff workflow plan in \"value\" taking the project from Google Stitch UI through the chosen next builder app, testing, and deployment using ALL other filled fields.",
+        )),
         _ => Err("Unsupported field requested for AI fill.".to_string()),
     }
 }
@@ -148,6 +152,10 @@ pub(crate) fn mini_grill_topic_guidance(topic: &str) -> Result<&'static str, Str
         "codingLanguage" => Ok("Clarify developer ergonomics, target ecosystem, or deployment priorities to refine coding language notes."),
         "proArch" => Ok("Clarify technical architecture, testing coverage, or security constraints for AGENTS.md."),
         "stitchUi" => Ok("Grill the user specifically about visual UI design (layout density, navigation pattern, color mood, typography, and component style) using any attached reference images."),
+        "workflow" => Ok("Clarify build sequence, builder tool handoff requirements, and testing milestones for the implementation workflow."),
+        "localAgents" => Ok("Clarify local model inference parameters, Ollama context sizing, or offline privacy boundaries."),
+        "multiAgent" => Ok("Clarify file ownership boundaries, conflict avoidance protocols, and PR handoff criteria between parallel coding agents."),
+        "exporter" => Ok("Clarify custom prompt tokens, export file structure, or platform-specific prompt formatting preferences."),
         _ => Err("Unsupported mini-grill topic.".to_string()),
     }
 }
@@ -177,15 +185,19 @@ fn optional_features(payload: &Value) -> Result<Vec<String>, String> {
     }
 }
 
+const MAX_MULTIMODAL_IMAGES: usize = 4;
+const MAX_IMAGE_BASE64_CHARS: usize = 13_300_000;
+
 pub(crate) fn build_multimodal_parts(prompt: String, payload: &Value) -> Value {
     let mut parts = vec![json!({ "text": prompt })];
     if let Some(images) = payload.get("images").and_then(Value::as_array) {
-        for img in images {
+        for img in images.iter().take(MAX_MULTIMODAL_IMAGES) {
             if let Some(data_url) = img.get("dataUrl").and_then(Value::as_str)
                 && let Some(rest) = data_url.strip_prefix("data:")
                 && let Some((mime, b64)) = rest.split_once(";base64,")
                 && mime.starts_with("image/")
                 && !b64.is_empty()
+                && b64.len() <= MAX_IMAGE_BASE64_CHARS
             {
                 parts.push(json!({
                     "inlineData": {
@@ -278,7 +290,7 @@ Include:\n\
 - A 2-paragraph plain-English coreIdea explaining what problem it solves and how people interact with it\n\
 - targetPlatform ('desktop', 'web', 'mobile', or 'cli')\n\
 - 5 specific plain-English features\n\
-- 3 tailored multiple-choice clarification questions (with 3 concise options each and a default selectedAnswer)\n\
+- 5 tailored multiple-choice clarification questions (with 3 concise options each and a default selectedAnswer)\n\
 - Recommended stackSummary and architectureStyle for Pro mode."
             );
 
@@ -380,8 +392,8 @@ Include:\n\
                 .unwrap_or_else(|| "{}".to_string());
 
             let prompt = format!(
-                "Analyze this live application specification and dynamically generate 5 fresh, sharp multiple-choice clarification questions (\"Grill Me\") tailored directly to everything the user already filled in.\n\
-Strictly avoid repeating topics or questions already answered in Previous Decisions / Answers below — keep those remembered and dig into 5 NEW unaddressed product, data, error-handling, or UX decisions.\n\n\
+                "Analyze this live application specification and dynamically generate 8 fresh, sharp multiple-choice clarification questions (\"Grill Me\") tailored directly to everything the user already filled in.\n\
+Strictly avoid repeating topics or questions already answered in Previous Decisions / Answers below — keep those remembered and dig into 8 NEW unaddressed product, data, error-handling, or UX decisions.\n\n\
 App Name: {app_name}\n\
 Tagline: {tagline}\n\
 Target Device: {target_platform}\n\
@@ -392,7 +404,7 @@ Ground Rules: {ground_rules}\n\
 Previous Decisions / Answers (DO NOT REPEAT THESE): {clarifications}\n\
 Technical Stack & Pro Details: {pro_config}\n\
 Stitch UI Details: {stitch_ui}\n\n\
-Rules for the 5 questions:\n\
+Rules for the 8 questions:\n\
 - Write questions in plain, everyday English (no intimidating jargon).\n\
 - Reference specific features, device, or coding language choices the user already made.\n\
 - Each question must have 3 distinct, practical multiple-choice options (under 14 words each).\n\
@@ -403,7 +415,7 @@ Rules for the 5 questions:\n\
             Ok(json!({
                 "systemInstruction": {
                     "parts": [{
-                        "text": "You are a Socratic product coach. Return exactly 5 fresh, non-duplicate high-value multiple-choice questions in valid JSON."
+                        "text": "You are a Socratic product coach. Return exactly 8 fresh, non-duplicate high-value multiple-choice questions in valid JSON."
                     }]
                 },
                 "contents": [{ "role": "user", "parts": [{ "text": prompt }] }],

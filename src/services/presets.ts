@@ -166,7 +166,68 @@ export const DEFAULT_PROJECT_STATE: ProjectState = {
       selectedAnswer:
         '(Recommended) Pre-load a sample app with starter templates and AI random idea generator',
     },
+    {
+      id: 'q-offline',
+      category: 'Data Storage & Resilience',
+      question: 'How should client state be persisted during unexpected network disconnections?',
+      options: [
+        '(Recommended) In-memory React state mirrored to localStorage and desktop disk cache',
+        'Strict cloud-only synchronization with blocking loading screens',
+        'Ephemeral memory-only session state that clears on page reload',
+      ],
+      selectedAnswer:
+        '(Recommended) In-memory React state mirrored to localStorage and desktop disk cache',
+    },
+    {
+      id: 'q-performance',
+      category: 'Interaction Latency Budget',
+      question: 'What is the target maximum latency budget for UI mode switches and filter actions?',
+      options: [
+        '(Recommended) Sub-200ms instantaneous response with optimistic client updates',
+        'Standard 500ms response window with animated spinner indicators',
+        'Batched asynchronous state synchronization on idle worker frames',
+      ],
+      selectedAnswer:
+        '(Recommended) Sub-200ms instantaneous response with optimistic client updates',
+    },
+    {
+      id: 'q-workflow-tool',
+      category: 'Stage 2 Builder Tool Handoff',
+      question: 'Which tool should the workflow recommend by default for full-stack build execution?',
+      options: [
+        '(Recommended) Dynamically adapt between Antigravity for desktop/native and AI Studio for web',
+        'Always route to Google AI Studio with full-stack React + Express prompt',
+        'Always route to Google Antigravity with autonomous task execution graph',
+      ],
+      selectedAnswer:
+        '(Recommended) Dynamically adapt between Antigravity for desktop/native and AI Studio for web',
+    },
+    {
+      id: 'q-freemium',
+      category: 'Freemium & Offline AI Strategy',
+      question: 'How should Stage 3 packaging and testing accommodate users without paid API keys?',
+      options: [
+        '(Recommended) Provide an optional 100% free offline alternative via local Ollama coder models',
+        'Require a Google Gemini API key for all code generation and verification tasks',
+        'Provide static starter templates with manual copy-paste instructions',
+      ],
+      selectedAnswer:
+        '(Recommended) Provide an optional 100% free offline alternative via local Ollama coder models',
+    },
+    {
+      id: 'q-collaboration',
+      category: 'Multi-Agent File Ownership',
+      question: 'How should parallel AI agents avoid race conditions and file collisions?',
+      options: [
+        '(Recommended) Declare explicit Work-On vs Stay-Away path boundaries in COLLABORATION.md',
+        'Sequential single-agent execution without parallel work lanes',
+        'Shared root git repository with automated three-way merge resolution',
+      ],
+      selectedAnswer:
+        '(Recommended) Declare explicit Work-On vs Stay-Away path boundaries in COLLABORATION.md',
+    },
   ],
+  workflowPlan: '',
   proConfig: {
     stackSummary:
       'Tauri v2 (Rust 1.80+), React 19, TypeScript 5.x, Vite, Tailwind CSS v4, Radix UI Primitives, @google/genai SDK',

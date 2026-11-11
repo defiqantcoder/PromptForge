@@ -1,5 +1,5 @@
 import React from 'react';
-import { Gauge, HelpCircle, Lock, Moon, WifiOff } from 'lucide-react';
+import { Gauge, HelpCircle, Lock, Moon, Sparkles, Wand2, WifiOff } from 'lucide-react';
 import {
   ClarificationItem,
   GroundRules,
@@ -104,6 +104,21 @@ export function ArchitectureDeck({
 
   const activeCount = Object.values(state.groundRules).filter(Boolean).length;
 
+  const handleRecommendRules = () => {
+    // Recommend optimal ground rules based on platform, stack, and user features
+    const isDesktopOrCli = state.targetPlatform === 'desktop' || state.targetPlatform === 'cli';
+    onUpdate((prev) => ({
+      ...prev,
+      groundRules: {
+        offlineFirst: isDesktopOrCli || prev.features.some(f => /offline|local|vault|cache/i.test(f)),
+        highPerformance: true,
+        localPrivacy: isDesktopOrCli || prev.features.some(f => /key|auth|private|secret/i.test(f)),
+        darkModeDefault: true,
+      },
+      lastUpdated: new Date().toISOString(),
+    }));
+  };
+
   return (
     <DeckCard
       id="deck-architecture"
@@ -113,6 +128,16 @@ export function ArchitectureDeck({
       tooltipKey="deck-architecture"
       headerRight={
         <div className="flex flex-wrap items-center gap-2.5">
+          <button
+            type="button"
+            onClick={handleRecommendRules}
+            className="pf-btn-secondary inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium cursor-pointer"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-[#34D399]" />
+            <span>Recommend Rules (AI)</span>
+          </button>
+          <HelpBadge tooltipKey="rule-recommend-ai" />
+
           <MiniGrillButton
             label="Mini Grill Rules"
             loading={miniGrillLoadingTopic === 'groundRules'}
@@ -154,7 +179,7 @@ export function ArchitectureDeck({
                       }`}
                     />
                     <span className="text-sm font-semibold text-white">{rule.title}</span>
-                    <HelpCircle className="w-3.5 h-3.5 text-[#A78BFA]/60 shrink-0" />
+                    <HelpBadge tooltipKey={rule.tooltipKey} />
                   </div>
                   <p className="text-xs text-[#CBC3D7] leading-relaxed">
                     {rule.plainSubtitle}

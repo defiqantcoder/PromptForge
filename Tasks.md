@@ -27,8 +27,8 @@
   - Verification: Run `npm test` (`server.test.ts` and `tests/geminiClient.test.ts`).
 
 - [x] **T006: Socratic Interrogator ("Grill Me") Component (HITL)**
-  - Implement the 3-question clarification generator using structured Gemini JSON output.
-  - Render multiple-choice radio cards with recommended defaults in `GrillDeck.tsx`.
+  - Implement the 5-question dynamic Grill Me clarification generator using structured Gemini JSON output.
+  - Render multiple-choice radio cards with recommended defaults across `ManifestDeck`, `ArchitectureDeck`, `GrillDeck`, `TasksDeck`, `WorkflowDeck`, and `ExporterDeck`.
   - Verification: Trigger clarification; select options and confirm answers fold directly into compiled state.
 
 - [x] **T007: Contract Compiler & Multi-Platform Exporters (AFK) [P]**

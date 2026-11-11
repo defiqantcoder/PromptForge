@@ -35,6 +35,7 @@ describe('Server Security Middleware', () => {
 
   test('localOriginGuard rejects cross-origin and spoofed localhost POSTs on /api/ in production', async () => {
     for (const badOrigin of [
+      'null',
       'https://malicious.example.com',
       'http://localhost.evil.com',
       'http://127.0.0.1.evil.com',

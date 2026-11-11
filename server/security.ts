@@ -84,17 +84,15 @@ export function localOriginGuard(req: Request, res: Response, next: NextFunction
     return next();
   }
 
-  let isLocal = origin === 'null';
-  if (!isLocal) {
-    try {
-      const url = new URL(origin);
-      const isLoopbackHost = url.hostname === 'localhost' || url.hostname === '127.0.0.1';
-      isLocal =
-        (url.protocol === 'http:' && isLoopbackHost && !url.username && !url.password) ||
-        url.protocol === 'tauri:';
-    } catch {
-      isLocal = false;
-    }
+  let isLocal = false;
+  try {
+    const url = new URL(origin);
+    const isLoopbackHost = url.hostname === 'localhost' || url.hostname === '127.0.0.1';
+    isLocal =
+      (url.protocol === 'http:' && isLoopbackHost && !url.username && !url.password) ||
+      (url.protocol === 'tauri:' && url.hostname === 'localhost');
+  } catch {
+    isLocal = false;
   }
 
   if (!isLocal) {

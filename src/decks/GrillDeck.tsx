@@ -47,15 +47,37 @@ export function GrillDeck({
     }));
   };
 
+  const handleAutoSelectRecommended = () => {
+    onUpdate((prev) => ({
+      ...prev,
+      clarifications: prev.clarifications.map((item) => {
+        const rec = item.options.find((o) => o.startsWith('(Recommended)')) || item.options[0];
+        return { ...item, selectedAnswer: rec };
+      }),
+      lastUpdated: new Date().toISOString(),
+    }));
+  };
+
   return (
     <DeckCard
       id="deck-grill"
       stepNumber="03."
       title={'"Grill Me" — Dynamic Clarification Interview'}
-      subtitle="Asks 5 targeted follow-up questions per round while keeping all previous questions & answers remembered."
+      subtitle="Runs an in-depth 8-question clarification interview (Q1–Q8) resolving edge cases and technical decisions while keeping all prior answers remembered."
       tooltipKey="deck-grill"
       headerRight={
         <div className="flex flex-wrap items-center gap-2">
+          {state.clarifications.length > 0 && (
+            <button
+              type="button"
+              onClick={handleAutoSelectRecommended}
+              className="pf-btn-secondary inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium cursor-pointer"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-[#34D399]" />
+              <span>Auto-Pick Recommended (AI)</span>
+            </button>
+          )}
+
           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#0F0C1B]/85 border border-[#C084FC]/20 text-[11px] text-[#CBC3D7]">
             {isAutoRefreshing || isGrilling ? (
               <>
@@ -73,7 +95,7 @@ export function GrillDeck({
                         hour: '2-digit',
                         minute: '2-digit',
                       })}`
-                    : `${state.clarifications.length} remembered Q&A`}
+                    : `${state.clarifications.length} remembered Q&A (Q1–Q${Math.max(8, state.clarifications.length)})`}
                 </span>
               </>
             )}
@@ -106,10 +128,10 @@ export function GrillDeck({
                 )}
                 <span>
                   {isGrilling
-                    ? 'Asking 5 Questions...'
+                    ? 'Asking 8 Questions...'
                     : state.clarifications.length > 0
-                    ? 'Grill Me (+5 More Questions)'
-                    : 'Grill Me (Ask 5 Questions)'}
+                    ? 'Grill Me (+8 More Questions)'
+                    : 'Grill Me (Ask 8 Questions)'}
                 </span>
               </button>
             </ExplainerTooltip>
@@ -126,7 +148,7 @@ export function GrillDeck({
               No Clarification Questions Generated Yet
             </h3>
             <p className="text-xs text-[#CBC3D7] max-w-md mx-auto">
-              Click "Grill Me" above—or edit your idea above—so AI can spot edge cases and suggest 5 tailored multiple-choice decisions while remembering your prior answers.
+              Click "Grill Me" above so AI can spot edge cases and suggest 8 tailored multiple-choice decisions (Q1–Q8) while remembering your prior answers.
             </p>
           </div>
         </div>

@@ -215,5 +215,12 @@ test('compiler test suite', async (t) => {
       codingLanguage: 'rust-tauri',
     });
     assert.equal(rustWorkflow.nextAppId, 'antigravity');
+
+    const { compileRustLibRs } = await import('../src/services/compiler.ts');
+    const rustLib = compileRustLibRs(richState);
+    assert.match(rustLib, /\nfn save_spec_bundle\(/);
+    assert.doesNotMatch(rustLib, /pub fn save_spec_bundle/);
+    assert.match(rustLib, /"COLLABORATION\.md"/);
+    assert.match(rustLib, /"\.continuerules"/);
   });
 });
