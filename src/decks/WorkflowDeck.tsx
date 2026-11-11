@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   ArrowRight,
   Check,
@@ -92,13 +92,43 @@ const TEXT_EXTENSIONS = new Set([
   'jsx',
 ]);
 
-function sanitizeImageDataUrl(rawUrl: string): string | null {
-  const match = rawUrl
-    .trim()
-    .match(/^data:image\/(png|jpeg|jpg|webp|gif);base64,([A-Za-z0-9+/=]+)$/i);
-  if (!match) return null;
-  const subtype = match[1].toLowerCase() === 'jpg' ? 'jpeg' : match[1].toLowerCase();
-  return `data:image/${subtype};base64,${match[2]}`;
+function IdeaImageThumb({ dataUrl, name }: { dataUrl: string; name: string }) {
+  const [objectUrl, setObjectUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    const match = dataUrl
+      .trim()
+      .match(/^data:image\/(png|jpeg|jpg|webp|gif);base64,([A-Za-z0-9+/=]+)$/i);
+    if (!match) {
+      setObjectUrl(null);
+      return;
+    }
+    const subtype = match[1].toLowerCase() === 'jpg' ? 'jpeg' : match[1].toLowerCase();
+    try {
+      const binary = atob(match[2]);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) {
+        bytes[i] = binary.charCodeAt(i);
+      }
+      const blob = new Blob([bytes], { type: `image/${subtype}` });
+      const url = URL.createObjectURL(blob);
+      setObjectUrl(url);
+      return () => URL.revokeObjectURL(url);
+    } catch {
+      setObjectUrl(null);
+      return undefined;
+    }
+  }, [dataUrl]);
+
+  if (!objectUrl) {
+    return (
+      <div className="w-full h-24 flex items-center justify-center text-[10px] text-[#958EA0] bg-[#141122]">
+        Preview unavailable
+      </div>
+    );
+  }
+
+  return <img src={objectUrl} alt={name} className="w-full h-24 object-cover" />;
 }
 
 function generateSafeId(prefix: string): string {
@@ -555,24 +585,12 @@ export function WorkflowDeck({
               </button>
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                {stitchUi.ideaImages.map((img) => {
-                  const safeSrc = sanitizeImageDataUrl(img.dataUrl);
-                  return (
-                    <div
-                      key={img.id}
-                      className="group relative rounded-xl overflow-hidden border border-[#C084FC]/30 bg-[#0B0D12]"
-                    >
-                      {safeSrc ? (
-                        <img
-                          src={safeSrc}
-                          alt={img.name}
-                          className="w-full h-24 object-cover"
-                        />
-                      ) : (
-                        <div className="w-full h-24 flex items-center justify-center text-[10px] text-[#958EA0] bg-[#141122]">
-                          Preview unavailable
-                        </div>
-                      )}
+                {stitchUi.ideaImages.map((img) => (
+                  <div
+                    key={img.id}
+                    className="group relative rounded-xl overflow-hidden border border-[#C084FC]/30 bg-[#0B0D12]"
+                  >
+                    <IdeaImageThumb dataUrl={img.dataUrl} name={img.name} />
                     <div className="px-2 py-1 text-[10px] font-mono text-[#E9D5FF] truncate bg-[#131620]">
                       {img.name}
                     </div>
@@ -585,8 +603,7 @@ export function WorkflowDeck({
                       <Trash2 className="w-3 h-3" />
                     </button>
                   </div>
-                  );
-                })}
+                ))}
               </div>
             )}
           </div>
