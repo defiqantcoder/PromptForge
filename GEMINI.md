@@ -17,3 +17,7 @@ Always follow the project instructions and specifications in:
   - `npm run build`
   - `cargo check --manifest-path src-tauri/Cargo.toml`
 - Keep `PROMPTFORGE_BUNDLE.md` updated locally only when explicitly requested.
+
+## Git & Release Workflow
+- Always commit and push verified changes to the `main` branch (`origin/main`).
+- Do NOT build the `.deb` / `.AppImage` packages (`npm run tauri build`) or publish/push a release unless explicitly requested by the user.

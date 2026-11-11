@@ -56,3 +56,7 @@ PromptForge is a native Ubuntu desktop workstation that translates plain-languag
 ## Generated Files
 - Do NOT edit generated files in `src-tauri/target/` or `dist/`.
 - Regenerate icons via `npm run tauri icon` when visual assets change.
+
+## Workflow
+- Always commit and push verified changes to the `main` branch (`origin/main`).
+- Do NOT build the `.deb` / `.AppImage` packages (`npm run tauri build`) or publish/push a release unless explicitly requested by the user.
