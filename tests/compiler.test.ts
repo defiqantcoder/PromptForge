@@ -86,7 +86,7 @@ test('compiler test suite', async (t) => {
   });
 
   await t.test('compilePlatformContract returns non-empty contracts for all platforms', () => {
-    const platforms = ['stitch', 'aistudio', 'antigravity', 'copilot', 'canvas'] as const;
+    const platforms = ['stitch', 'aistudio', 'antigravity', 'copilot', 'canvas', 'local-ollama'] as const;
     platforms.forEach(platform => {
       const contract = compilePlatformContract(mockState, platform);
       assert.ok(contract.title.length > 0);
@@ -99,6 +99,7 @@ test('compiler test suite', async (t) => {
   await t.test('Edge cases: empty features, clarifications, and undefined template variables do not throw', () => {
     const emptyState = { ...mockState, features: [], clarifications: [], proConfig: { ...mockState.proConfig, templateVariables: {} } };
     assert.doesNotThrow(() => compileSpecMd(emptyState));
+    assert.doesNotThrow(() => compilePlanMd(emptyState));
     assert.doesNotThrow(() => compileAgentsMd(emptyState));
     assert.doesNotThrow(() => compilePlatformContract(emptyState, 'stitch'));
   });
@@ -110,8 +111,13 @@ test('compiler test suite', async (t) => {
     assert.doesNotMatch(specMd, /\n- Delete records/);
   });
 
-  await t.test('compiler injects codingLanguage, Stitch UI direction/results, and recommends next workflow app', async () => {
-    const { recommendBuildWorkflow } = await import('../src/services/compiler.ts');
+  await t.test('compiler injects codingLanguage, Stitch UI screens, extended plan.md, local agents, and COLLABORATION.md', async () => {
+    const {
+      recommendBuildWorkflow,
+      compileCollaborationMd,
+      compileContinueRules,
+      compileStitchScreenPrompt,
+    } = await import('../src/services/compiler.ts');
     const richState: ProjectState = {
       ...mockState,
       targetPlatform: 'web',
@@ -129,9 +135,39 @@ test('compiler test suite', async (t) => {
           },
         ],
         ideaImages: [],
+        screens: [
+          {
+            id: 'scr-1',
+            name: 'Command Menu Drawer',
+            kind: 'menu',
+            notes: 'Slide-out command launcher with recent actions',
+          },
+        ],
         uploadedResultName: 'stitch-export.html',
         uploadedResultContent: '<main><h1>Dashboard</h1></main>',
         uploadedResultNotes: 'Wire state filters to sidebar',
+      },
+      localAgents: {
+        enabled: true,
+        provider: 'both',
+        ollamaModel: 'qwen2.5-coder:14b',
+        ollamaEndpoint: 'http://localhost:11434',
+        notes: 'Keep changes tightly scoped.',
+      },
+      multiAgent: {
+        enabled: true,
+        sharedProtocolNotes: 'Never edit files owned by another lane.',
+        lanes: [
+          {
+            id: 'lane-ui',
+            agentName: 'UI Agent',
+            focusArea: 'Decks & CSS',
+            status: 'in-progress',
+            workOnPaths: 'src/decks/',
+            stayAwayPaths: 'src-tauri/',
+            handoffNote: 'Ping backend lane on new fields',
+          },
+        ],
       },
     };
 
@@ -139,9 +175,34 @@ test('compiler test suite', async (t) => {
     assert.match(agentsMd, /TypeScript \+ React/);
     assert.match(agentsMd, /Prefer Radix primitives/);
 
+    const planMd = compilePlanMd(richState);
+    assert.match(planMd, /## 1\. System Architecture & Data Flow/);
+    assert.match(planMd, /## 3\. UI Surfaces & Multi-Screen Hierarchy/);
+    assert.match(planMd, /## 7\. Security Boundaries, Phased Milestones & Verification Matrix/);
+    assert.match(planMd, /### 8\. Optional Local AI Workflow/);
+    assert.match(planMd, /### 9\. Multi-Agent Coordination Boundaries/);
+    assert.match(planMd, /Command Menu Drawer/);
+
     const stitchContract = compilePlatformContract(richState, 'stitch');
     assert.match(stitchContract.promptText, /Editorial dark dashboard/);
     assert.match(stitchContract.promptText, /Balanced whitespace/);
+    assert.match(stitchContract.promptText, /Command Menu Drawer/);
+
+    const singleScreenPrompt = compileStitchScreenPrompt(
+      richState,
+      richState.stitchUi!.screens![0]
+    );
+    assert.match(singleScreenPrompt, /Command Menu Drawer/);
+    assert.match(singleScreenPrompt, /Slide-out command launcher/);
+
+    const collabMd = compileCollaborationMd(richState);
+    assert.match(collabMd, /UI Agent/);
+    assert.match(collabMd, /src\/decks\//);
+    assert.match(collabMd, /src-tauri\//);
+
+    const continueRules = compileContinueRules(richState);
+    assert.match(continueRules, /qwen2\.5-coder:14b/);
+    assert.match(continueRules, /Keep changes tightly scoped\./);
 
     const webWorkflow = recommendBuildWorkflow(richState);
     assert.equal(webWorkflow.nextAppId, 'aistudio');

@@ -141,23 +141,31 @@ test('Extended Gemini endpoints accept unlimited text and multimodal images', as
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        field: 'codingLanguageNote',
+        field: 'multiAgentProtocol',
+        aiModel: 'gemini-3.5-flash-lite',
+        currentValue: 'Initial rules',
+        variationNonce: 123,
         context: { appName: 'PulseVault', codingLanguage: 'rust-tauri', coreIdea: longIdea },
       }),
     });
     assert.equal(fillResp.status, 200);
+    const fillCaptured = capturedBodies[capturedBodies.length - 1] as any;
+    assert.equal(fillCaptured.generationConfig.thinkingConfig.thinkingLevel, 'MINIMAL');
+    assert.ok(String(fillCaptured.contents[0].parts[0].text).includes('Initial rules'));
 
     const miniResp = await clientFetch(`${base}/api/gemini/mini-grill`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         topic: 'stitchUi',
+        aiModel: 'gemini-4-argon',
         context: { appName: 'PulseVault' },
         images: [{ id: 'img1', name: 'ref.png', mimeType: 'image/png', dataUrl: 'data:image/png;base64,iVBORw0KGgo=' }],
       }),
     });
     assert.equal(miniResp.status, 200);
     const lastCaptured = capturedBodies[capturedBodies.length - 1] as any;
+    assert.equal(lastCaptured.generationConfig.thinkingConfig.thinkingLevel, 'LOW');
     assert.equal(lastCaptured.contents[0].parts[1].inlineData.mimeType, 'image/png');
 
     const surpriseResp = await clientFetch(`${base}/api/gemini/stitch-surprise`, {

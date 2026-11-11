@@ -97,7 +97,10 @@ test('geminiClient routes through Express fetch in browser mode and Tauri IPC in
       generateStitchSurprise,
       recommendCodingLanguage,
     } = await import('../src/services/geminiClient.ts');
-    await fillFieldWithAi('tagline', DEFAULT_PROJECT_STATE);
+    await fillFieldWithAi('tagline', { ...DEFAULT_PROJECT_STATE, aiModel: 'gemini-4-argon' }, {
+      currentValue: 'Draft tagline',
+      variationNonce: 777,
+    });
     await generateMiniGrillQuestions('stitchUi', DEFAULT_PROJECT_STATE);
     await generateStitchSurprise(DEFAULT_PROJECT_STATE);
     await recommendCodingLanguage(DEFAULT_PROJECT_STATE);
@@ -110,6 +113,9 @@ test('geminiClient routes through Express fetch in browser mode and Tauri IPC in
     assert.equal(invokedCalls[2].cmd, 'gemini_proxy_request');
     assert.equal((invokedCalls[2].args as any).endpoint, '/api/gemini/fill-field');
     assert.equal((invokedCalls[2].args as any).payload.field, 'tagline');
+    assert.equal((invokedCalls[2].args as any).payload.aiModel, 'gemini-4-argon');
+    assert.equal((invokedCalls[2].args as any).payload.currentValue, 'Draft tagline');
+    assert.equal((invokedCalls[2].args as any).payload.variationNonce, 777);
     assert.equal((invokedCalls[2].args as any).payload.context.appName, DEFAULT_PROJECT_STATE.appName);
     assert.equal(
       (invokedCalls[2].args as any).payload.context.codingLanguage,

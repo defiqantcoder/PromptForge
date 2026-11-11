@@ -67,4 +67,23 @@ test('presets test suite', async (t) => {
     assert.equal(updated[0].id, 'custom-recent-99');
     assert.equal(updated[0].name, 'BrandNewStudio');
   });
+
+  await t.test('AI_MODELS, OLLAMA_MODEL_PRESETS, and local/multi-agent defaults', async () => {
+    const {
+      AI_MODELS,
+      OLLAMA_MODEL_PRESETS,
+      DEFAULT_LOCAL_AGENTS,
+      DEFAULT_MULTI_AGENT,
+    } = await import('../src/services/presets.ts');
+
+    const ids = AI_MODELS.map((m) => m.id);
+    assert.ok(ids.includes('gemini-3.5-flash-lite'));
+    assert.ok(ids.includes('gemini-3.8-flash'));
+    assert.ok(ids.includes('gemini-3.1-pro-preview'));
+    assert.ok(ids.includes('gemini-4-argon'));
+    assert.ok(OLLAMA_MODEL_PRESETS.length >= 4);
+    assert.equal(DEFAULT_LOCAL_AGENTS.enabled, false);
+    assert.equal(DEFAULT_MULTI_AGENT.enabled, false);
+    assert.ok(DEFAULT_MULTI_AGENT.lanes.length >= 2);
+  });
 });

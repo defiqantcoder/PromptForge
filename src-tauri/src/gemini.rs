@@ -2,9 +2,31 @@ use serde_json::{json, Value};
 use std::sync::OnceLock;
 use std::time::Duration;
 
-pub(crate) const GEMINI_MODEL_ENDPOINT: &str =
-    "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent";
+pub(crate) const GEMINI_MODELS_BASE_URL: &str =
+    "https://generativelanguage.googleapis.com/v1beta/models/";
 pub(crate) const GEMINI_TIMEOUT_SECS: u64 = 30;
+
+pub(crate) fn resolve_model_and_thinking(payload: &Value) -> (&'static str, &'static str) {
+    let raw = payload
+        .get("aiModel")
+        .and_then(Value::as_str)
+        .or_else(|| {
+            payload
+                .get("context")
+                .and_then(|ctx| ctx.get("aiModel"))
+                .and_then(Value::as_str)
+        })
+        .unwrap_or("gemini-3.8-flash")
+        .trim();
+
+    match raw {
+        "gemini-3.5-flash-lite" => ("gemini-3.5-flash-lite", "MINIMAL"),
+        "gemini-3.6-flash" => ("gemini-3.6-flash", "LOW"),
+        "gemini-3.1-pro-preview" => ("gemini-3.1-pro-preview", "LOW"),
+        "gemini-4-argon" => ("gemini-4-argon", "LOW"),
+        _ => ("gemini-3.8-flash", "LOW"),
+    }
+}
 
 pub(crate) static HTTP_CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
 
@@ -98,9 +120,21 @@ pub(crate) fn fill_field_guidance(field: &str) -> Result<(&'static str, &'static
             "Stitch UI Visual Direction",
             "Describe a vivid, cohesive UI layout, color mood, and component hierarchy in \"value\" for Google Stitch based on all other filled fields.",
         )),
+        "stitchScreenNotes" => Ok((
+            "Stitch Screen / Menu Prompt Notes",
+            "Describe the exact layout zones, navigation affordances, states (loading, empty, active), and interactive controls in \"value\" for this specific Google Stitch screen/menu/modal based on all filled fields.",
+        )),
         "uploadedResultNotes" => Ok((
             "Stitch Result Handoff Notes",
             "Summarize in \"value\" how the next coding tool should wire interactive logic, state, and edge cases onto the Stitch UI based on all filled fields.",
+        )),
+        "localAgentNotes" => Ok((
+            "Local AI Agent Rules (Ollama / Continue)",
+            "Write concise local-first instructions in \"value\" for Ollama & Continue (.continuerules) specifying small focused edits, coding style, and verification commands tailored to this project.",
+        )),
+        "multiAgentProtocol" => Ok((
+            "Multi-Agent Coordination Protocol",
+            "Write clear coordination rules in \"value\" for COLLABORATION.md explaining how parallel agents claim lanes, avoid file collisions, and signal handoffs.",
         )),
         _ => Err("Unsupported field requested for AI fill.".to_string()),
     }
@@ -166,7 +200,9 @@ pub(crate) fn build_multimodal_parts(prompt: String, payload: &Value) -> Value {
 }
 
 pub(crate) fn build_gemini_request_body(kind: GeminiEndpoint, payload: &Value) -> Result<Value, String> {
-    match kind {
+    let (_, thinking_level) = resolve_model_and_thinking(payload);
+    let mut body: Value = (|| -> Result<Value, String> {
+        match kind {
         GeminiEndpoint::Expand => {
             let core_idea = optional_str(payload, "coreIdea")?
                 .filter(|s| !s.trim().is_empty())
@@ -344,8 +380,8 @@ Include:\n\
                 .unwrap_or_else(|| "{}".to_string());
 
             let prompt = format!(
-                "Analyze this live application specification and dynamically generate 3 fresh, sharp multiple-choice clarification questions (\"Grill Me\") tailored directly to everything the user already filled in.\n\
-Avoid repeating questions that are already answered in the existing decisions below — focus on the next most valuable unresolved product, UX, or edge-case decisions.\n\n\
+                "Analyze this live application specification and dynamically generate 5 fresh, sharp multiple-choice clarification questions (\"Grill Me\") tailored directly to everything the user already filled in.\n\
+Strictly avoid repeating topics or questions already answered in Previous Decisions / Answers below — keep those remembered and dig into 5 NEW unaddressed product, data, error-handling, or UX decisions.\n\n\
 App Name: {app_name}\n\
 Tagline: {tagline}\n\
 Target Device: {target_platform}\n\
@@ -353,10 +389,10 @@ Coding Language: {coding_language}\n\
 Core Idea: {core_idea}\n\
 Feature List: {features}\n\
 Ground Rules: {ground_rules}\n\
-Previous Decisions / Answers: {clarifications}\n\
+Previous Decisions / Answers (DO NOT REPEAT THESE): {clarifications}\n\
 Technical Stack & Pro Details: {pro_config}\n\
 Stitch UI Details: {stitch_ui}\n\n\
-Rules for the 3 questions:\n\
+Rules for the 5 questions:\n\
 - Write questions in plain, everyday English (no intimidating jargon).\n\
 - Reference specific features, device, or coding language choices the user already made.\n\
 - Each question must have 3 distinct, practical multiple-choice options (under 14 words each).\n\
@@ -367,7 +403,7 @@ Rules for the 3 questions:\n\
             Ok(json!({
                 "systemInstruction": {
                     "parts": [{
-                        "text": "You are a Socratic product coach. Return exactly 3 high-value multiple-choice questions in valid JSON."
+                        "text": "You are a Socratic product coach. Return exactly 5 fresh, non-duplicate high-value multiple-choice questions in valid JSON."
                     }]
                 },
                 "contents": [{ "role": "user", "parts": [{ "text": prompt }] }],
@@ -410,14 +446,29 @@ Rules for the 3 questions:\n\
                 .filter(|v| v.is_object())
                 .ok_or_else(|| "Invalid project context payload.".to_string())?;
             let serialized_context = context.to_string();
+            let current_value = payload
+                .get("currentValue")
+                .and_then(Value::as_str)
+                .map(str::trim)
+                .filter(|s| !s.is_empty());
+            let variation_nonce = payload
+                .get("variationNonce")
+                .and_then(|v| v.as_u64().or_else(|| v.as_str().and_then(|s| s.parse().ok())))
+                .unwrap_or(1);
+            let current_value_hint = match current_value {
+                Some(existing) => format!(
+                    "\nCurrent Field Draft (user clicked Fill with AI again — refine, elevate, or offer a fresh complementary alternative instead of repeating identically):\n{existing}\nVariation Seed: {variation_nonce}\n"
+                ),
+                None => String::new(),
+            };
 
             let prompt = format!(
                 "You are PromptForge, helping a builder fill out one specific field using ALL other filled fields in their project.\n\n\
 Target Field: {field} ({label})\n\
-Task: {instruction}\n\n\
+Task: {instruction}{current_value_hint}\n\n\
 Full Project Context (JSON):\n\
 {serialized_context}\n\n\
-Return valid JSON with \"value\" (and \"secondaryValue\" only when Target Field is \"templateVariable\"). Avoid jargon in Simple/Balanced fields and stay completely consistent with every filled section (including coding language, feature list, ground rules, clarifications, Pro config, and Stitch UI direction)."
+Return valid JSON with \"value\" (and \"secondaryValue\" only when Target Field is \"templateVariable\"). Avoid jargon in Simple/Balanced fields and stay completely consistent with every filled section (including coding language, feature list, ground rules, clarifications, Pro config, Stitch UI direction, local agents, and multi-agent protocol)."
             );
 
             Ok(json!({
@@ -619,7 +670,15 @@ Pick the single best recommendedId for this project, give a clear plain-English 
                 }
             }))
         }
+        }
+    })()?;
+    if let Some(gen_cfg) = body.get_mut("generationConfig").and_then(Value::as_object_mut) {
+        gen_cfg.insert(
+            "thinkingConfig".to_string(),
+            json!({ "thinkingLevel": thinking_level }),
+        );
     }
+    Ok(body)
 }
 
 
@@ -826,6 +885,51 @@ mod tests {
             )
             .unwrap();
             assert_eq!(lang["generationConfig"]["responseMimeType"], "application/json");
+            assert_eq!(
+                lang["generationConfig"]["thinkingConfig"]["thinkingLevel"],
+                "LOW"
+            );
+        }
+
+        #[test]
+        fn resolves_models_thinking_levels_and_unlimited_fill_variations() {
+            assert_eq!(
+                resolve_model_and_thinking(&json!({ "aiModel": "gemini-3.5-flash-lite" })),
+                ("gemini-3.5-flash-lite", "MINIMAL")
+            );
+            assert_eq!(
+                resolve_model_and_thinking(&json!({ "context": { "aiModel": "gemini-3.1-pro-preview" } })),
+                ("gemini-3.1-pro-preview", "LOW")
+            );
+            assert_eq!(
+                resolve_model_and_thinking(&json!({ "aiModel": "gemini-4-argon" })),
+                ("gemini-4-argon", "LOW")
+            );
+            assert_eq!(
+                resolve_model_and_thinking(&json!({ "aiModel": "untrusted-model" })),
+                ("gemini-3.8-flash", "LOW")
+            );
+
+            for field in ["stitchScreenNotes", "localAgentNotes", "multiAgentProtocol"] {
+                let body = build_gemini_request_body(
+                    GeminiEndpoint::FillField,
+                    &json!({
+                        "field": field,
+                        "aiModel": "gemini-3.5-flash-lite",
+                        "currentValue": "Previous draft",
+                        "variationNonce": 42,
+                        "context": { "appName": "PromptForge" }
+                    }),
+                )
+                .unwrap();
+                assert_eq!(
+                    body["generationConfig"]["thinkingConfig"]["thinkingLevel"],
+                    "MINIMAL"
+                );
+                let prompt_text = body["contents"][0]["parts"][0]["text"].as_str().unwrap();
+                assert!(prompt_text.contains("Previous draft"));
+                assert!(prompt_text.contains("Variation Seed: 42"));
+            }
         }
 
 }

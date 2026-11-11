@@ -16,12 +16,14 @@ const PLATFORMS: Array<{
   id: ExportPlatformId;
   label: string;
   tooltipKey: string;
+  secondary?: boolean;
 }> = [
   { id: 'stitch', label: 'Google Stitch', tooltipKey: 'platform-stitch' },
   { id: 'aistudio', label: 'Google AI Studio', tooltipKey: 'platform-aistudio' },
   { id: 'antigravity', label: 'Google Antigravity (AGY)', tooltipKey: 'platform-antigravity' },
-  { id: 'copilot', label: 'GitHub Copilot', tooltipKey: 'platform-copilot' },
   { id: 'canvas', label: 'Gemini Canvas', tooltipKey: 'platform-canvas' },
+  { id: 'local-ollama', label: 'Local AI (Ollama)', tooltipKey: 'platform-local-ollama' },
+  { id: 'copilot', label: 'Copilot (Optional)', tooltipKey: 'platform-copilot', secondary: true },
 ];
 
 export function ExporterDeck({
@@ -38,7 +40,7 @@ export function ExporterDeck({
       id="deck-exporter"
       stepNumber="06."
       title="Targeted Multi-Platform Contract Exporter"
-      subtitle="Select your target AI platform to generate a ready-to-paste prompt contract, or write spec.md, plan.md, tasks.md, and AGENTS.md directly to your computer."
+      subtitle="Select your target AI platform to generate a ready-to-paste prompt contract, or write your markdown & agent specs directly to your computer."
       tooltipKey="deck-exporter"
       headerRight={
         <span className="inline-flex items-center gap-1.5">
@@ -72,10 +74,12 @@ export function ExporterDeck({
                   role="tab"
                   aria-selected={active}
                   onClick={() => setSelectedPlatform(plat.id)}
-                  className={`px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap shrink-0 cursor-pointer ${
+                  className={`px-3.5 py-1.5 rounded-lg text-xs transition-all whitespace-nowrap shrink-0 cursor-pointer ${
                     active
-                      ? 'bg-[#8B5CF6] text-white shadow-sm'
-                      : 'text-[#CBC3D7] hover:text-white hover:bg-white/5'
+                      ? 'bg-[#8B5CF6] text-white font-medium shadow-sm'
+                      : plat.secondary
+                      ? 'ml-auto text-[11px] font-normal text-[#958EA0] hover:text-[#CBC3D7] hover:bg-white/5'
+                      : 'font-medium text-[#CBC3D7] hover:text-white hover:bg-white/5'
                   }`}
                 >
                   {plat.label}

@@ -298,4 +298,29 @@ export const TOOLTIP_DICTIONARY: Record<string, TooltipEntry> = {
     description: 'Opens your native Ubuntu folder picker so you can select a destination directory visually.',
     aiUsage: 'Passes the selected directory path directly to the safe Rust file writer.',
   },
+  'action-model-selector': {
+    title: 'AI Model & Speed Selector',
+    description: 'Switch between Gemini 3.5 Flash-Lite (fastest), 3.6 Flash, 3.8 Flash (balanced fast), 3.1 Pro, and Gemini 4 Argon.',
+    aiUsage: 'PromptForge configures low/minimal thinking overhead on fast models so Fill with AI and Grill Me finish quickly.',
+  },
+  'stitch-multi-screen': {
+    title: 'Multi-Screen & Menu Stitch Prompts',
+    description: 'Add as many individual screens, menus, modals, or components as your app needs and generate a separate Stitch prompt for each one.',
+    aiUsage: 'Lets you feed Stitch one focused screen or menu at a time while staying consistent with your overall visual direction.',
+  },
+  'section-local-agents': {
+    title: 'Optional Local AI Agents (Ollama / Continue)',
+    description: 'Enable private, offline-capable local coding instructions for Ollama models and the Continue IDE extension.',
+    aiUsage: 'Generates .continuerules and Ollama/Continue configuration inside exports and plan.md alongside cloud agent specs.',
+  },
+  'section-multi-agent': {
+    title: 'Multi-Agent Project Collaboration (COLLABORATION.md)',
+    description: 'Coordinate multiple AI coding agents cleanly by defining which folders each agent works on and which boundaries they must stay away from.',
+    aiUsage: 'Compiles COLLABORATION.md with ownership lanes, file locks, and shared handoff rules to prevent merge conflicts.',
+  },
+  'platform-local-ollama': {
+    title: 'Local AI Agents (Ollama + Continue)',
+    description: 'Generates offline-ready setup commands, Modelfile hints, and Continue prompt rules for running coding tasks locally.',
+    aiUsage: 'Lets you pair your PromptForge specs with local open-weight coder models via http://127.0.0.1:11434.',
+  },
 };

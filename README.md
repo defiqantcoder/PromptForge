@@ -1,11 +1,14 @@
 # PromptForge
 
-A fast, jargon-free **Ubuntu desktop & web specification workstation** that turns plain-English application ideas into structured, production-ready AI coding contracts (`AGENTS.md`, `spec.md`, `plan.md`, `tasks.md`), **Google Stitch UI design prompts**, and step-by-step build handoffs for **Google AI Studio**, **Google Antigravity (AGY)**, **GitHub Copilot**, and **Gemini Canvas**.
+A fast, jargon-free **Ubuntu desktop & web specification workstation** that turns plain-English application ideas into structured, production-ready AI coding contracts (`AGENTS.md`, `spec.md`, `plan.md`, `tasks.md`, plus optional `COLLABORATION.md` and `.continuerules`), **unlimited Google Stitch UI screen & menu prompts**, and step-by-step build handoffs for **Google AI Studio**, **Google Antigravity (AGY)**, **Gemini Canvas**, **Local AI (Ollama / Continue)**, and **GitHub Copilot**.
 
 ---
 
 ## Key Features
 
+- **Low-Latency AI & Model Switcher (`3.5 Flash-Lite` | `3.6 Flash` | `3.8 Flash` | `3.1 Pro` | `4 Argon`)**
+  - Uses explicit `thinkingConfig.thinkingLevel` (`LOW` on Flash/Pro/Argon, `MINIMAL` on Flash-Lite) so requests return rapidly instead of stalling on extended default reasoning.
+  - Swap models anytime directly from the workstation control bar.
 - **Three-Tier Complexity Switcher (`Simple` | `Balanced` | `Pro`)**
   - **Simple Mode (`Alt+1`)**: Focuses on your core plain-English answers (*App Name & Tagline*, *Q1 Big Idea*, *Q2 Target Device*, *Q3 Feature List*, and *Q4 Coding Language*), plus **Guided Build Workflow** and **Multi-Platform Exporters**.
   - **Balanced Mode (`Alt+2`)**: Adds **Everyday Ground Rules** (*Offline-First*, *High Performance*, *Local Privacy*, *Dark Mode Default*) and the dynamic **"Grill Me"** Socratic clarification interview.
@@ -13,22 +16,25 @@ A fast, jargon-free **Ubuntu desktop & web specification workstation** that turn
   - Switching tiers only filters the visible decks—all entered state persists seamlessly in memory and `localStorage`.
 - **Most Recent 3 Starter Blueprints**
   - The left sidebar automatically tracks and displays your **3 most recent project blueprints** so you can switch between active app ideas with one click or reset to a clean slate via **New Blank App**.
-- **Six Stacked Workstation Decks**
-  - `ManifestDeck` (Idea, Platform, Feature List + Add Step, Coding Language Selector + AI Language Advisor), `ArchitectureDeck`, `GrillDeck`, `TasksDeck`, `WorkflowDeck` (Google Stitch UI Studio + Next App Handoff), and `ExporterDeck`, paired with the live **Contract Compiler** inspector.
+- **Comprehensive 9-Section `plan.md` Compiler**
+  - Compiles a detailed technical blueprint covering executive summary, ASCII architecture flow, feature traceability matrix, multi-screen Stitch hierarchy, typed domain models, IPC/API contracts, failure & latency recovery, security/verification matrix, and multi-agent / local AI orchestration.
 - **Universal `?` Plain-English Hover Explainers**
   - Hovering over `?` badges next to headers, navigation links, sections, blanks, and action buttons opens accessible (`role="tooltip"`) plain-English explanations of what each item does and how AI tools use it.
-- **Unlimited Text & Full-Context "Fill with AI"**
+- **Unlimited Text & Unlimited Full-Context "Fill with AI"**
   - Write as much detail as you like without artificial character or feature limits.
-  - Every field blank (`App Name`, `Tagline`, `Big Idea`, `Next Feature`, `Language Notes`, Pro fields, `Dynamic Token`, `Custom Rule`, `Stitch Visual Direction`, and `Handoff Notes`) includes a **Fill with AI** button that reads **all other filled sections** across your workspace.
-- **Dynamic "Grill Me" & Section Mini "Grill Me" Buttons**
-  - The main **Grill Me** deck dynamically adapts its 3 multiple-choice questions in the background as you update earlier sections, preserving matching answers.
-  - Focused **Mini Grill** buttons next to *Big Idea*, *Feature List*, *Coding Language*, *Ground Rules*, *Pro Architecture*, and *Stitch UI Design* ask 1–2 quick multiple-choice questions to help you add concrete detail on demand.
+  - Click **Fill with AI** repeatedly (unlimited times) next to any blank (`App Name`, `Tagline`, `Big Idea`, `Next Feature`, `Language Notes`, Pro fields, `Dynamic Token`, `Custom Rule`, `Stitch Visual Direction`, per-screen Stitch notes, `Handoff Notes`, `Local Agent Guardrails`, `Multi-Agent Protocol`). Re-clicking automatically sends the current draft + variation seed so Gemini refines or offers fresh alternatives.
+- **5-Question Memory "Grill Me" & Section Mini "Grill Me" Buttons**
+  - Generates **5 targeted multiple-choice questions per round** while **remembering and retaining all previous questions & answers** across rounds (never wiping prior decisions when appending new follow-ups; individual or all Q&A can still be removed manually).
+  - Focused **Mini Grill** buttons next to *Big Idea*, *Feature List*, *Coding Language*, *Ground Rules*, *Pro Architecture*, and *Stitch UI Design* ask quick multiple-choice questions to help add concrete detail on demand.
 - **Coding Language Selector & AI Advisor ("What's Best for What?")**
   - Pick `Auto`, `TypeScript + React`, `Rust + Tauri v2`, `Python`, `Dart + Flutter`, `Kotlin`, `Swift`, `Go`, or `C# / .NET`—or click **Ask AI: What's Best for What?** for a plain-English recommendation, trade-offs breakdown, and per-language comparison tailored to your project.
-- **Guided Build Workflow & Google Stitch UI Studio**
-  - **Stage 1 — Google Stitch UI Studio**: Attach reference **idea images** (`Upload Idea Images`), run **Grill Me on UI Design** or **Surprise Me (AI UI)** (sending images multimodally to Gemini), refine your **Visual Direction**, copy your tailored Stitch prompt, and upload what Google Stitch builds (**Upload Stitch Export / Screenshot**).
-  - **Stage 2 — Recommended Next App & `.md` Bundle**: Automatically recommends the right next builder (`Google Antigravity (AGY)` or `Google AI Studio`), generates the next prompt incorporating your Stitch output, and lets you copy/download/save `AGENTS.md`, `spec.md`, `plan.md`, and `tasks.md`.
-  - **Stage 3 — Final Polish**: Generates a dedicated iteration/polish prompt (`Gemini Canvas` or `GitHub Copilot`).
+- **Guided Build Workflow & Unlimited Google Stitch Screen/Menu Prompts**
+  - **Stage 1 — Google Stitch UI Studio**: Attach reference **idea images** (`Upload Idea Images`), run **Grill Me on UI Design** or **Surprise Me (AI UI)**, generate the master `stitch-ui-prompt.txt`, add **unlimited individual Screen / Menu / Modal / Component Stitch prompts**, and upload what Google Stitch builds (**Upload Stitch Export / Screenshot**).
+  - **Stage 2 — Recommended Next App & Spec Bundle**: Automatically recommends the right next builder (`Google Antigravity (AGY)` or `Google AI Studio`), generates the next prompt incorporating your Stitch output, and lets you copy/download/save `AGENTS.md`, `spec.md`, `plan.md`, `tasks.md`, plus optional `COLLABORATION.md` and `.continuerules`.
+  - **Stage 3 — Final Polish**: Generates a dedicated iteration/polish prompt (`Gemini Canvas` or `Antigravity`).
+- **Optional Local AI Agents (Ollama / Continue) & Multi-Agent `COLLABORATION.md`**
+  - Enable **Local AI Agents** to generate `.continuerules` and ready-to-run `ollama` model commands (`qwen2.5-coder:14b`, `llama3.3:70b`, `deepseek-r1:14b`, etc.).
+  - Enable **Multi-Agent Coordination** to define parallel agent lanes with explicit **Work On** vs. **Stay Away From** paths and handoff notes compiled into `COLLABORATION.md`.
 - **Native Ubuntu Export & Desktop Keyring**
   - **Save to Computer** routes through Rust Tauri IPC (`save_spec_bundle`) with canonical path validation and `..` traversal rejection, and stores your Gemini key locally in GNOME Keyring via `libsecret`.
 
@@ -40,11 +46,13 @@ A fast, jargon-free **Ubuntu desktop & web specification workstation** that turn
   - Plugins & Crates: `tauri-plugin-dialog`, `tauri-plugin-fs`, `tauri-plugin-log`, `keyring 2.3.3`, `reqwest 0.12`, `serde`, `serde_json`
 - **Frontend**: React 19, TypeScript, Vite 8, Tailwind CSS v4
 - **UI & Motion**: Radix UI Primitives (`Dialog`, `Tabs`, `Tooltip`), Lucide React, Motion
-- **Dev API Proxy & AI SDK**: Express 4 (`tsx server.ts`), `@google/genai` (`gemini-3.8-flash`), `dotenv`
+- **Dev API Proxy & AI SDK**: Express 4 (`tsx server.ts`), `@google/genai` (default `gemini-3.8-flash` with `thinkingLevel: LOW`), `dotenv`
 
 ---
 
-## Prerequisites (Ubuntu / Linux)
+## Prerequisites (Ubuntu / Linux — Building From Source Only)
+
+Pre-built GitHub Release packages already include bundled runtime dependencies (`.AppImage`) or declare full system dependencies automatically via `apt` (`.deb`). If compiling from source:
 
 - **Node.js**: `v20+` (`v22` recommended; `>=22.0.0` is declared by `@google/genai`) and `npm`
 - **Rust**: `1.90+` (`rustup` stable toolchain)
@@ -62,16 +70,16 @@ A fast, jargon-free **Ubuntu desktop & web specification workstation** that turn
 
 ## Installing / Updating the Desktop App (Ubuntu Release)
 
-Download the latest `.deb` or `.AppImage` from [GitHub Releases](https://github.com/defiqantcoder/PromptForge/releases):
+Download the latest `.deb` or self-contained `.AppImage` from [GitHub Releases](https://github.com/defiqantcoder/PromptForge/releases):
 
-- **Install or upgrade the `.deb` package**:
+- **Install or upgrade the `.deb` package** (automatically resolves and installs required system dependencies):
   ```bash
-  sudo apt install -y ./PromptForge_0.2.0_amd64.deb
+  sudo apt install -y ./PromptForge_0.3.0_amd64.deb
   ```
-- **Or run the standalone `.AppImage`**:
+- **Or run the standalone `.AppImage`** (bundles WebKit/GTK/GStreamer runtime libraries inside the image):
   ```bash
-  chmod +x PromptForge_0.2.0_amd64.AppImage
-  ./PromptForge_0.2.0_amd64.AppImage
+  chmod +x PromptForge_0.3.0_amd64.AppImage
+  ./PromptForge_0.3.0_amd64.AppImage
   ```
 
 ---
@@ -137,20 +145,21 @@ cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings
 ```text
 PromptForge/
 ├── .github/workflows/ci.yml        # GitHub Actions CI (tsc + npm test + build + cargo test on ubuntu-24.04)
-├── server.ts                       # Express + Vite dev server and /api/gemini/* proxy routes
+├── server.ts                       # Express + Vite dev server, model switcher & /api/gemini/* proxy routes
+├── server/                         # Security origin guard, ZIP archive & spec validation Express modules
 ├── index.html                      # Application HTML shell
 ├── package.json                    # Scripts, React 19 / Vite 8 / Tauri JS dependencies
 ├── tsconfig.json                   # TypeScript configuration
 ├── vite.config.ts                  # Vite + Tailwind v4 configuration
 ├── src/
-│   ├── App.tsx                     # Main 3-column workstation, dynamic Grill Me, Recent 3 Blueprints & AI orchestration
+│   ├── App.tsx                     # Main 3-column workstation, model switcher, 5-question memory Grill Me & AI orchestration
 │   ├── main.tsx                    # React entrypoint
 │   ├── index.css                   # Purple-glass design tokens and surface styles
-│   ├── types/project.ts            # ProjectState, CodingLanguageId, StitchUiConfig, WorkflowProgress & domain types
+│   ├── types/project.ts            # ProjectState, AiModelId, LocalAgentsConfig, MultiAgentConfig, StitchScreenPrompt & domain types
 │   ├── components/
 │   │   ├── Card.tsx                # Frosted glass card primitive with header ? tooltip
 │   │   ├── CodeViewer.tsx          # Live syntax/markdown inspector with copy, download & {{token}} editor
-│   │   ├── FillWithAiButton.tsx    # Full-context Fill with AI trigger button
+│   │   ├── FillWithAiButton.tsx    # Full-context unlimited Fill with AI trigger button
 │   │   ├── KeyringModal.tsx        # Desktop GNOME Keyring API key modal
 │   │   ├── MiniGrillSection.tsx    # Reusable section-level Mini Grill button & interactive panel
 │   │   ├── ModeSwitcher.tsx        # Simple | Balanced | Pro mode selector
@@ -159,25 +168,27 @@ PromptForge/
 │   ├── decks/
 │   │   ├── ManifestDeck.tsx        # Idea, Platform, Q3 Feature List, Q4 Coding Language & AI Advisor
 │   │   ├── ArchitectureDeck.tsx    # Everyday ground rules & Mini Grill controls
-│   │   ├── GrillDeck.tsx           # Dynamic Socratic 3-question multiple-choice interview
+│   │   ├── GrillDeck.tsx           # Dynamic Socratic 5-question multiple-choice interview with memory
 │   │   ├── TasksDeck.tsx           # Pro HITL / AFK task slicing, 10-section AGENTS.md overrides & {{variable}} tokens
-│   │   ├── WorkflowDeck.tsx        # Guided Build Workflow & Google Stitch UI Studio (images, Surprise Me, result upload)
+│   │   ├── WorkflowDeck.tsx        # Guided Build Workflow, Multi-Screen Stitch Prompts, Local AI (Ollama/Continue) & COLLABORATION.md
 │   │   └── ExporterDeck.tsx        # Multi-platform prompt contracts & export triggers
 │   └── services/
-│       ├── compiler.ts             # Pure deterministic compiler for specs, Stitch context & workflow recommendations
-│       ├── geminiClient.ts         # Dual-mode Tauri IPC / Express client with 30s timeout & full context helper
-│       ├── presets.ts              # Language catalog, recent 3 blueprints helpers & curated starter templates
+│       ├── compiler.ts             # Pure deterministic compiler for specs, 9-section plan.md, COLLABORATION.md & .continuerules
+│       ├── geminiClient.ts         # Dual-mode Tauri IPC / Express client with 30s timeout, model routing & variation nonces
+│       ├── presets.ts              # Model catalog, language catalog, Ollama presets & curated starter blueprints
 │       ├── tauriBridge.ts          # Native dialog, keyring, and export IPC bridge
 │       └── tooltips.ts             # Plain-English tooltip dictionary
 ├── src-tauri/
 │   ├── Cargo.toml                  # Rust dependencies (tauri v2, reqwest, keyring, plugins)
-│   ├── tauri.conf.json             # App identifier, 1440x900 window, Ubuntu bundle targets
+│   ├── tauri.conf.json             # App identifier, 1440x900 window, bundled Linux deb & AppImage settings
 │   ├── capabilities/default.json   # Least-privilege permissions (core:default, dialog:allow-open, fs:default)
 │   ├── build.rs                    # Tauri build script
 │   └── src/
 │       ├── main.rs                 # Desktop binary entrypoint
-│       └── lib.rs                  # IPC commands: save_spec_bundle, get/set/has_secure_key, gemini_proxy_request
-├── tests/                          # Unit tests (compiler, presets, tauriBridge, geminiClient)
+│       ├── lib.rs                  # Tauri app setup and IPC commands delegating to export & gemini modules
+│       ├── export.rs               # Canonicalized path guard & spec allowlist (including COLLABORATION.md & .continuerules)
+│       └── gemini.rs               # Native Gemini API proxy builder, model allowlist & thinkingConfig injection
+├── tests/                          # Unit tests (compiler, presets, tauriBridge, geminiClient, routes & security)
 ├── server.test.ts                  # Express route, timeout, multimodal & error-privacy regression tests
 ├── Agents.md                       # Agent architecture, conventions, and security instructions
 ├── spec.md                         # Product specification & EARS behavioral requirements
@@ -190,8 +201,8 @@ PromptForge/
 
 ## Security & Architecture Notes
 
-- **Sandboxed UI Layer**: Frontend code never writes directly to disk; file writes route through the Rust [`save_spec_bundle`](src-tauri/src/lib.rs) IPC command when running natively.
-- **Path Traversal Guard**: Both `canonicalizeLinuxPath` (`src/services/tauriBridge.ts`) and `validate_and_resolve_dir` (`src-tauri/src/lib.rs`) reject `..` segments, expand `~/`, canonicalize target directories, and restrict written filenames strictly to `AGENTS.md`, `spec.md`, `plan.md`, and `tasks.md`.
+- **Sandboxed UI Layer**: Frontend code never writes directly to disk; file writes route through the Rust [`save_spec_bundle`](src-tauri/src/export.rs) IPC command when running natively.
+- **Path Traversal Guard**: Both `canonicalizeLinuxPath` (`src/services/tauriBridge.ts`) and `validate_and_resolve_dir` (`src-tauri/src/export.rs`) reject `..` segments, expand `~/`, canonicalize target directories, and restrict written filenames strictly to `AGENTS.md`, `spec.md`, `plan.md`, `tasks.md`, `COLLABORATION.md`, and `.continuerules`.
 - **Least-Privilege Capabilities**: `src-tauri/capabilities/default.json` limits permissions to `core:default`, `dialog:allow-open`, and `fs:default`.
 - **OS Keyring Storage**: `get_secure_key`, `set_secure_key`, and `has_secure_key` store and check API credentials under the `promptforge` service in the system keyring via `keyring`, while `gemini_proxy_request` sends credentials strictly via the `x-goog-api-key` header.
 

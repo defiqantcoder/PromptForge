@@ -79,6 +79,8 @@ describe('Archive Route (POST /api/export/bundle)', () => {
       files: {
         'plan.md': 'My plan',
         'spec.md': 'My spec',
+        'COLLABORATION.md': 'My multi-agent board',
+        '.continuerules': 'My local agent rules',
       },
     });
 

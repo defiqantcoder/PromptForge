@@ -49,7 +49,14 @@ pub(crate) fn save_spec_bundle_to_dir(
     files: HashMap<String, String>,
 ) -> Result<bool, String> {
     let resolved_dir = validate_and_resolve_dir(&target_dir)?;
-    let allowed_files = ["AGENTS.md", "spec.md", "plan.md", "tasks.md"];
+    let allowed_files = [
+        "AGENTS.md",
+        "spec.md",
+        "plan.md",
+        "tasks.md",
+        "COLLABORATION.md",
+        ".continuerules",
+    ];
 
     for (filename, content) in files {
         if !allowed_files.contains(&filename.as_str()) {

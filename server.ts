@@ -2,8 +2,9 @@ import { securityHeadersMiddleware, createRateLimiter, localOriginGuard } from '
 import express from 'express';
 import { createServer as createViteServer } from 'vite';
 import path from 'path';
+import crypto from 'node:crypto';
 import dotenv from 'dotenv';
-import { GoogleGenAI, Type, type GenerateContentParameters } from '@google/genai';
+import { GoogleGenAI, ThinkingLevel, Type, type GenerateContentParameters } from '@google/genai';
 import { fileURLToPath } from 'url';
 import { registerSpecValidateRoute } from './server/specValidateRoute.js';
 import { registerArchiveRoutes } from './server/archiveRoute.ts';
@@ -11,6 +12,34 @@ import { registerArchiveRoutes } from './server/archiveRoute.ts';
 dotenv.config();
 
 const PORT = 3000;
+
+const ALLOWED_AI_MODELS = new Set([
+  'gemini-3.5-flash-lite',
+  'gemini-3.6-flash',
+  'gemini-3.8-flash',
+  'gemini-3.1-pro-preview',
+  'gemini-4-argon',
+]);
+
+/**
+ * Resolves a validated Gemini model ID and low-latency thinkingConfig from the request body.
+ */
+function resolveAiModelConfig(reqBody: Record<string, unknown> | undefined) {
+  const nestedContext =
+    reqBody?.context && typeof reqBody.context === 'object'
+      ? (reqBody.context as Record<string, unknown>)
+      : undefined;
+  const candidate =
+    typeof reqBody?.aiModel === 'string'
+      ? reqBody.aiModel
+      : typeof nestedContext?.aiModel === 'string'
+      ? (nestedContext.aiModel as string)
+      : 'gemini-3.8-flash';
+  const model = ALLOWED_AI_MODELS.has(candidate) ? candidate : 'gemini-3.8-flash';
+  const thinkingLevel =
+    model === 'gemini-3.5-flash-lite' ? ThinkingLevel.MINIMAL : ThinkingLevel.LOW;
+  return { model, thinkingConfig: { thinkingLevel } };
+}
 
 /**
  * Initializes and returns a GoogleGenAI client instance with the configured API key.
@@ -204,22 +233,24 @@ export async function createApp() {
       return;
     }
 
+    const { model, thinkingConfig } = resolveAiModelConfig(req.body);
     await executeGeminiJsonRoute(
       {
-        model: 'gemini-3.8-flash',
+        model,
         contents: `You are PromptForge, a friendly product architect that translates rough, plain-English app thoughts into clear, jargon-free specifications.
 
 Current App Name: ${appName || 'Untitled App'}
 Target Device: ${targetPlatform || 'desktop'}
 Rough Idea: ${coreIdea}
-Current Main Steps: ${Array.isArray(features) ? features.join('; ') : 'None yet'}
+Current Feature List: ${Array.isArray(features) ? features.join('; ') : 'None yet'}
 
 Expand this rough idea into:
 1. A crisp, memorable app name (if the current one is generic or empty, improve it; otherwise keep it).
 2. A 1-sentence plain-English tagline.
 3. A rich, well-structured 2-paragraph plain-English description of what the app does, who it helps, and how it feels to use (avoid obscure compiler/database jargon).
-4. 5 to 6 concrete, step-by-step user flows written in everyday language.`,
+4. 5 to 6 concrete, practical features written in everyday language.`,
         config: {
+          thinkingConfig,
           systemInstruction:
             'Always respond with valid JSON matching the requested schema. Use clear, warm, non-intimidating language suitable for both non-coders and developers.',
           responseMimeType: 'application/json',
@@ -269,21 +300,23 @@ Expand this rough idea into:
     ];
     const chosenTheme =
       (typeof categoryHint === 'string' && categoryHint.trim()) ||
-      seedCategories[Math.floor(Math.random() * seedCategories.length)];
+      seedCategories[crypto.randomInt(seedCategories.length)];
 
+    const { model, thinkingConfig } = resolveAiModelConfig(req.body);
     await executeGeminiJsonRoute(
       {
-        model: 'gemini-3.8-flash',
+        model,
         contents: `Invent an original, practical, and inspiring application idea around the theme: "${chosenTheme}".
 Make it concrete, distinctive, and immediately understandable by a non-technical builder.
 Include:
 - A catchy appName and 1-sentence tagline
 - A 2-paragraph plain-English coreIdea explaining what problem it solves and how people interact with it
 - targetPlatform ('desktop', 'web', 'mobile', or 'cli')
-- 5 specific plain-English user steps (features)
-- 3 tailored multiple-choice clarification questions (with 3 concise options each and a default selectedAnswer)
+- 5 specific plain-English features
+- 5 tailored multiple-choice clarification questions (with 3 concise options each and a default selectedAnswer)
 - Recommended stackSummary and architectureStyle for Pro mode.`,
         config: {
+          thinkingConfig,
           systemInstruction:
             'Generate an imaginative, realistic software application concept with zero filler jargon. Return strictly valid JSON.',
           responseMimeType: 'application/json',
@@ -385,10 +418,11 @@ Include:
       return;
     }
 
+    const aiModelConfig = resolveAiModelConfig(req.body);
     await executeGeminiJsonRoute(
       {
-        model: 'gemini-3.8-flash',
-        contents: `Analyze ALL current entries in this application specification and generate 3 sharp, friendly multiple-choice clarification questions ("Grill Me") that dynamically adapt to what the user has already entered and uncover remaining missing details, edge cases, or UX choices.
+        model: aiModelConfig.model,
+        contents: `Analyze ALL current entries in this application specification and generate 5 sharp, friendly multiple-choice clarification questions ("Grill Me") that dynamically adapt to what the user has already entered and uncover remaining missing details, edge cases, data storage, onboarding, error states, or UX choices.
 
 App Name: ${appName || 'Untitled App'}
 Tagline: ${tagline || 'None yet'}
@@ -397,19 +431,21 @@ Coding Language: ${codingLanguage || 'auto'} ${codingLanguageNote ? `(${codingLa
 Core Idea: ${coreIdea}
 Feature List: ${Array.isArray(features) ? features.join(' | ') : ''}
 Ground Rules: ${JSON.stringify(groundRules || {})}
-Previous Clarifications: ${JSON.stringify(clarifications || [])}
+Previous Clarifications (KEEP & DO NOT REPEAT THESE TOPICS OR QUESTIONS): ${JSON.stringify(clarifications || [])}
 Pro Config: ${JSON.stringify(proConfig || {})}
 Stitch UI Direction: ${JSON.stringify(stitchUi ? { visualDirection: stitchUi.visualDirection, uploadedResultName: stitchUi.uploadedResultName } : {})}
 
-Rules for the 3 questions:
+Rules for the 5 questions:
 - Write questions in plain, everyday English (no intimidating jargon).
-- Adapt directly to the user's current features, platform, coding language, and prior answers—do not repeat questions already answered identically unless new features introduced a gap.
+- Strictly avoid repeating any topic or question already covered in Previous Clarifications—dig into NEW unaddressed areas.
+- Adapt directly to the user's current features, platform, coding language, and prior answers.
 - Each question must have 3 distinct, practical multiple-choice options.
 - Prefix the best option with "(Recommended) ".
 - Set selectedAnswer to that recommended first option.`,
         config: {
           systemInstruction:
-            'You are a Socratic product coach. Return exactly 3 high-value multiple-choice questions in valid JSON.',
+            'You are a Socratic product coach. Return exactly 5 fresh, non-duplicate high-value multiple-choice questions in valid JSON.',
+          thinkingConfig: aiModelConfig.thinkingConfig,
           responseMimeType: 'application/json',
           responseSchema: {
             type: Type.OBJECT,
@@ -444,7 +480,7 @@ Rules for the 3 questions:
     );
   });
 
-  // 4. Context-Aware Single-Field Fill with AI (uses all other filled fields)
+  // 4. Context-Aware Single-Field Fill with AI (uses all other filled fields & supports unlimited refinements)
   const FILL_FIELD_GUIDANCE: Record<string, { label: string; instruction: string }> = {
     appName: {
       label: 'App Name',
@@ -506,15 +542,30 @@ Rules for the 3 questions:
       instruction:
         'Describe a vivid, cohesive UI layout, color mood, and component hierarchy in "value" for Google Stitch based on all other filled fields.',
     },
+    stitchScreenNotes: {
+      label: 'Stitch Screen / Menu Prompt Notes',
+      instruction:
+        'Describe the exact layout zones, navigation affordances, states (loading, empty, active), and interactive controls in "value" for this specific Google Stitch screen/menu/modal based on all filled fields.',
+    },
     uploadedResultNotes: {
       label: 'Stitch Result Handoff Notes',
       instruction:
         'Summarize in "value" how the next coding tool should wire interactive logic, state, and edge cases onto the Stitch UI based on all filled fields.',
     },
+    localAgentNotes: {
+      label: 'Local AI Agent Rules (Ollama / Continue)',
+      instruction:
+        'Write concise local-first instructions in "value" for Ollama & Continue (.continuerules) specifying small focused edits, coding style, and verification commands tailored to this project.',
+    },
+    multiAgentProtocol: {
+      label: 'Multi-Agent Coordination Protocol',
+      instruction:
+        'Write clear coordination rules in "value" for COLLABORATION.md explaining how parallel agents claim lanes, avoid file collisions, and signal handoffs.',
+    },
   };
 
   app.post('/api/gemini/fill-field', requireGeminiKey, async (req, res) => {
-    const { field, context } = req.body || {};
+    const { field, context, currentValue, variationNonce } = req.body || {};
     if (!field || typeof field !== 'string' || !(field in FILL_FIELD_GUIDANCE)) {
       res.status(400).json({ error: 'Unsupported field requested for AI fill.' });
       return;
@@ -524,15 +575,21 @@ Rules for the 3 questions:
       return;
     }
 
+    const aiModelConfig = resolveAiModelConfig(req.body);
     const serializedContext = JSON.stringify(context);
     const guidance = FILL_FIELD_GUIDANCE[field];
+    const currentValueText =
+      typeof currentValue === 'string' && currentValue.trim()
+        ? `\nCurrent Field Draft (user clicked Fill with AI again — refine, elevate, or offer a fresh complementary alternative instead of repeating identically):\n${currentValue.trim()}\nVariation Seed: ${variationNonce ?? 'next'}`
+        : '';
+
     await executeGeminiJsonRoute(
       {
-        model: 'gemini-3.8-flash',
+        model: aiModelConfig.model,
         contents: `You are PromptForge, helping a builder fill out one specific field using EVERY OTHER filled field across the entire project.
 
 Target Field: ${field} (${guidance.label})
-Task: ${guidance.instruction}
+Task: ${guidance.instruction}${currentValueText}
 
 Full Project Context (JSON):
 ${serializedContext}
@@ -541,6 +598,7 @@ Return valid JSON with "value" (and "secondaryValue" only when Target Field is "
         config: {
           systemInstruction:
             'You are a thoughtful product architect. Read every filled field in the context carefully and return strictly valid JSON with a smart, tailored answer for the requested field.',
+          thinkingConfig: aiModelConfig.thinkingConfig,
           responseMimeType: 'application/json',
           responseSchema: {
             type: Type.OBJECT,
@@ -594,11 +652,13 @@ Rules:
 - Each question must have 3 practical options, prefixing the best option with "(Recommended) ".
 - Set selectedAnswer to that recommended option.`;
 
+    const { model, thinkingConfig } = resolveAiModelConfig(req.body);
     await executeGeminiJsonRoute(
       {
-        model: 'gemini-3.8-flash',
+        model,
         contents: buildMultimodalContents(prompt, images),
         config: {
+          thinkingConfig,
           systemInstruction:
             'You are a friendly product & UI design coach. Return strictly valid JSON with 2 targeted multiple-choice questions.',
           responseMimeType: 'application/json',
@@ -643,28 +703,41 @@ Full Project Context (JSON):
 ${JSON.stringify(context)}
 
 Return:
-- visualDirection: a rich 2-3 sentence visual/layout brief describing color palette, surface materials, spatial layout, and vibe
-- colorMood: short 3-6 word palette summary
-- layoutSuggestion: short 1-sentence layout recommendation
-- uiHighlights: 3 specific UI components or micro-interactions that will make this app shine`;
+- designConceptName: short evocative theme name
+- visualDirection: a rich plain-English UI brief describing color palette, surface materials, spatial layout, typography mood, and key interactions
+- uiClarifications: 3 multiple-choice UI design questions (layout, navigation, visual density) with 3 practical options each (best prefixed with "(Recommended) ") and selectedAnswer set to that recommended option.`;
 
+    const { model, thinkingConfig } = resolveAiModelConfig(req.body);
     await executeGeminiJsonRoute(
       {
-        model: 'gemini-3.8-flash',
+        model,
         contents: buildMultimodalContents(prompt, images),
         config: {
+          thinkingConfig,
           systemInstruction:
             'You are a world-class UI/UX designer preparing a visual brief for Google Stitch. Return strictly valid JSON.',
           responseMimeType: 'application/json',
           responseSchema: {
             type: Type.OBJECT,
             properties: {
+              designConceptName: { type: Type.STRING },
               visualDirection: { type: Type.STRING },
-              colorMood: { type: Type.STRING },
-              layoutSuggestion: { type: Type.STRING },
-              uiHighlights: { type: Type.ARRAY, items: { type: Type.STRING } },
+              uiClarifications: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    id: { type: Type.STRING },
+                    category: { type: Type.STRING },
+                    question: { type: Type.STRING },
+                    options: { type: Type.ARRAY, items: { type: Type.STRING } },
+                    selectedAnswer: { type: Type.STRING },
+                  },
+                  required: ['id', 'category', 'question', 'options', 'selectedAnswer'],
+                },
+              },
             },
-            required: ['visualDirection', 'colorMood', 'layoutSuggestion', 'uiHighlights'],
+            required: ['designConceptName', 'visualDirection', 'uiClarifications'],
           },
         },
       },
@@ -692,17 +765,19 @@ Return:
       'csharp-dotnet',
     ];
 
+    const { model, thinkingConfig } = resolveAiModelConfig(req.body);
     await executeGeminiJsonRoute(
       {
-        model: 'gemini-3.8-flash',
+        model,
         contents: `Analyze this app specification and advise the builder in plain English on which coding language is best for what—and which single language fits their app best.
 
 Full Project Context (JSON):
 ${JSON.stringify(context)}
 
 Choose recommendedId from: ${allowedIds.join(', ')}.
-Include 4 practical language comparisons explaining clearly what each language is best for and how well it fits this specific app.`,
+Return summary, tradeoffs, and 4 practical comparisons explaining what each language is best for and why to consider or skip it.`,
         config: {
+          thinkingConfig,
           systemInstruction:
             'You are a friendly principal engineer explaining coding language trade-offs in plain, jargon-free English. Return strictly valid JSON.',
           responseMimeType: 'application/json',
@@ -711,22 +786,28 @@ Include 4 practical language comparisons explaining clearly what each language i
             properties: {
               recommendedId: { type: Type.STRING },
               recommendedLabel: { type: Type.STRING },
-              reasoning: { type: Type.STRING },
+              summary: { type: Type.STRING },
+              tradeoffs: { type: Type.STRING },
               comparisons: {
                 type: Type.ARRAY,
                 items: {
                   type: Type.OBJECT,
                   properties: {
-                    id: { type: Type.STRING },
-                    label: { type: Type.STRING },
+                    language: { type: Type.STRING },
                     bestFor: { type: Type.STRING },
-                    fitSummary: { type: Type.STRING },
+                    whyConsiderOrSkip: { type: Type.STRING },
                   },
-                  required: ['id', 'label', 'bestFor', 'fitSummary'],
+                  required: ['language', 'bestFor', 'whyConsiderOrSkip'],
                 },
               },
             },
-            required: ['recommendedId', 'recommendedLabel', 'reasoning', 'comparisons'],
+            required: [
+              'recommendedId',
+              'recommendedLabel',
+              'summary',
+              'tradeoffs',
+              'comparisons',
+            ],
           },
         },
       },

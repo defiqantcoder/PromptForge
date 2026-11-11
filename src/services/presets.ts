@@ -1,10 +1,111 @@
 import {
+  AiModelId,
   CodingLanguageId,
+  LocalAgentsConfig,
+  MultiAgentConfig,
   ProjectState,
   RecentBlueprintItem,
   StarterTemplate,
   StitchUiConfig,
 } from '../types/project';
+
+export const DEFAULT_LOCAL_AGENTS: LocalAgentsConfig = {
+  enabled: false,
+  provider: 'both',
+  ollamaModel: 'qwen2.5-coder:14b',
+  ollamaEndpoint: 'http://127.0.0.1:11434',
+  notes: 'Keep inference 100% local via Ollama with Continue IDE rules synced to .continuerules.',
+};
+
+export const DEFAULT_MULTI_AGENT: MultiAgentConfig = {
+  enabled: false,
+  lanes: [
+    {
+      id: 'agent-ui',
+      agentName: 'Agent A · UI & Design',
+      focusArea: 'Screens, Stitch integration, accessibility & CSS',
+      workOnPaths: 'src/components/, src/decks/, src/index.css',
+      stayAwayPaths: 'server/, src-tauri/src/',
+      status: 'ready',
+      handoffNote: 'Wait for typed API payloads from Agent B before wiring live calls.',
+    },
+    {
+      id: 'agent-backend',
+      agentName: 'Agent B · Backend & Native IPC',
+      focusArea: 'Express API routes, Rust Tauri IPC & security guards',
+      workOnPaths: 'server.ts, server/, src-tauri/src/',
+      stayAwayPaths: 'src/decks/, src/components/',
+      status: 'ready',
+      handoffNote: 'Publish request/response shapes in COLLABORATION.md when changed.',
+    },
+    {
+      id: 'agent-qa',
+      agentName: 'Agent C · QA, Specs & Release',
+      focusArea: 'Unit tests, verification commands, docs & packaging',
+      workOnPaths: 'tests/, server.test.ts, README.md',
+      stayAwayPaths: 'src/decks/, server/archiveRoute.ts',
+      status: 'ready',
+      handoffNote: 'Run npx tsc --noEmit, npm test, and cargo test after lane handoffs.',
+    },
+  ],
+  sharedProtocolNotes:
+    'Update COLLABORATION.md Status & Claims before editing shared contracts (src/types/project.ts) and never touch files listed in another agent lane Stay Away From boundary.',
+};
+
+export interface AiModelOption {
+  id: AiModelId;
+  label: string;
+  speedTag: string;
+  thinkingLevel: 'MINIMAL' | 'LOW' | 'MEDIUM';
+  summary: string;
+}
+
+export const AI_MODELS: AiModelOption[] = [
+  {
+    id: 'gemini-3.5-flash-lite',
+    label: 'Gemini 3.5 Flash-Lite',
+    speedTag: 'Fastest',
+    thinkingLevel: 'MINIMAL',
+    summary: 'Near-instant responses with minimal thinking overhead for snappy Fill with AI & Grill Me.',
+  },
+  {
+    id: 'gemini-3.6-flash',
+    label: 'Gemini 3.6 Flash',
+    speedTag: 'Very Fast',
+    thinkingLevel: 'LOW',
+    summary: 'High-speed Flash model with crisp JSON structure and low latency.',
+  },
+  {
+    id: 'gemini-3.8-flash',
+    label: 'Gemini 3.8 Flash',
+    speedTag: 'Balanced Fast',
+    thinkingLevel: 'LOW',
+    summary: 'Default everyday model tuned to Low thinking for rapid coding specs without sluggishness.',
+  },
+  {
+    id: 'gemini-3.1-pro-preview',
+    label: 'Gemini 3.1 Pro',
+    speedTag: 'Deep Reasoning',
+    thinkingLevel: 'LOW',
+    summary: 'Higher architectural reasoning depth for nuanced specs, Pro rules, and complex systems.',
+  },
+  {
+    id: 'gemini-4-argon',
+    label: 'Gemini 4 Argon',
+    speedTag: 'Flagship',
+    thinkingLevel: 'LOW',
+    summary: 'Latest flagship model (1M shared context) for highest-quality product & engineering synthesis.',
+  },
+];
+
+export const OLLAMA_MODEL_PRESETS = [
+  'qwen2.5-coder:14b',
+  'qwen2.5-coder:7b',
+  'llama3.3:70b',
+  'deepseek-r1:14b',
+  'codestral:22b',
+  'gemma3:12b',
+];
 
 export const DEFAULT_PROJECT_STATE: ProjectState = {
   id: 'promptforge-workstation',
@@ -13,6 +114,10 @@ export const DEFAULT_PROJECT_STATE: ProjectState = {
   coreIdea:
     'PromptForge is a fast, friendly Ubuntu desktop application that lets non-technical builders and developers describe an app idea in plain English and automatically compiles it into structured specification files (spec.md, plan.md, tasks.md, AGENTS.md) and platform-tuned prompts for Google Stitch, AI Studio, Antigravity, GitHub Copilot, and Gemini Canvas.\n\nIt strips away intimidating software jargon across three progressive complexity tiers (Simple, Balanced, Pro) while providing instant plain-English hover explainers, one-click Gemini idea expansion, and a 3-question Socratic clarification interview.',
   targetPlatform: 'desktop',
+  aiModel: 'gemini-3.8-flash',
+  codingLanguage: 'typescript-react',
+  localAgents: DEFAULT_LOCAL_AGENTS,
+  multiAgent: DEFAULT_MULTI_AGENT,
   features: [
     'Switch effortlessly between Simple, Balanced, and Pro modes without losing any entered project details',
     'Hover over any section badge, toggle, or button to read a friendly 2-sentence plain-English explanation',
@@ -432,6 +537,20 @@ export const DEFAULT_STITCH_UI: StitchUiConfig = {
     'Deep twilight glassmorphic workstation (#0F0C1B canvas, frosted #1B152E cards, crisp 1px lilac borders, electric violet #8B5CF6 actions, mint #34D399 status badges).',
   uiClarifications: [],
   ideaImages: [],
+  screens: [
+    {
+      id: 'screen-main-workspace',
+      name: 'Main Workspace',
+      kind: 'screen',
+      notes: 'Primary 3-panel canvas with left navigation, central action deck, and live status inspector.',
+    },
+    {
+      id: 'menu-navigation-settings',
+      name: 'Navigation & Settings Menu',
+      kind: 'menu',
+      notes: 'Top bar mode switcher, model selector, local agent drawer, and quick export actions.',
+    },
+  ],
   uploadedResultName: undefined,
   uploadedResultContent: undefined,
   uploadedResultNotes: '',

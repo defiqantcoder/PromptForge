@@ -1,5 +1,9 @@
-import { ExportPlatformId, ProjectState, SpecFileId } from '../types/project';
-import { CODING_LANGUAGES } from './presets';
+import { ExportPlatformId, ProjectState, SpecFileId, StitchScreenPrompt } from '../types/project';
+import {
+  CODING_LANGUAGES,
+  DEFAULT_LOCAL_AGENTS,
+  DEFAULT_MULTI_AGENT,
+} from './presets';
 
 const PLATFORM_LABELS: Record<ProjectState['targetPlatform'], string> = {
   desktop: 'Native Ubuntu Desktop Application (Tauri v2 + React 19)',
@@ -102,75 +106,280 @@ ${earsRequirements.length > 0 ? earsRequirements.join('\n') : '- No specific beh
 }
 
 export function compilePlanMd(state: ProjectState): string {
-  const raw = `# Technical Plan: ${state.appName}
+  const safeFeatures = (state.features || []).map((f) => f.trim()).filter(Boolean);
+  const featureArchRows =
+    safeFeatures.length > 0
+      ? safeFeatures
+          .map(
+            (feat, idx) =>
+              `| F-${String(idx + 1).padStart(2, '0')} | ${feat.replace(/\|/g, '/')} | UI Component -> State Store -> Validation -> ${
+                state.targetPlatform === 'desktop' ? 'Rust IPC / Local Storage' : 'Express API / Persistence'
+              } |`
+          )
+          .join('\n')
+      : '| F-01 | Primary workflow | UI Component -> State Store -> Local/API Handler |';
 
-## 1. System Architecture
-${state.appName} uses a clean separation between its interactive UI interface, AI synthesis routes (\`{{primary_model}}\`), and local platform runtime on \`{{target_os}}\`.
+  const screens = state.stitchUi?.screens ?? [];
+  const screensInventory =
+    screens.length > 0
+      ? screens
+          .map(
+            (s, i) =>
+              `${i + 1}. **${s.name}** (\`${s.kind}\`) — ${s.notes || 'Follow global visual direction'}`
+          )
+          .join('\n')
+      : '1. **Primary Screen** — Core interactive workstation canvas matching Stitch visual tokens.';
+
+  const stitchSection = state.stitchUi?.uploadedResultName
+    ? `- **Uploaded Stitch Artifact**: \`${state.stitchUi.uploadedResultName}\`
+- **Stitch Handoff Guidance**: ${state.stitchUi.uploadedResultNotes || 'Wire interactive state, form validation, and loading/error states onto imported Stitch layout.'}`
+    : '- **Pending Stitch Export**: Generate screens via Google Stitch first, then bind real handlers onto the approved layout.';
+
+  const localAgents = state.localAgents ?? DEFAULT_LOCAL_AGENTS;
+  const localAgentPlan = localAgents.enabled
+    ? `### 8. Optional Local AI Workflow (${localAgents.provider.toUpperCase()})
+- **Ollama Endpoint**: \`${localAgents.ollamaEndpoint}\`
+- **Model**: \`${localAgents.ollamaModel}\`
+- **Configuration Artifact**: \`.continuerules\` & \`.continue/config.yaml\` rules synced from specification invariants.
+- **Usage Note**: ${localAgents.notes || 'Use local models for privacy-sensitive refactoring and offline tests.'}`
+    : '### 8. Optional Local AI Workflow\n- Currently disabled (`localAgents.enabled = false`). Can be toggled on at any time to emit `.continuerules` and Ollama prompts.';
+
+  const multiAgent = state.multiAgent ?? DEFAULT_MULTI_AGENT;
+  const multiAgentPlan = multiAgent.enabled
+    ? `### 9. Multi-Agent Coordination Boundaries
+See \`COLLABORATION.md\` for full file-claim rules. Active ownership lanes:
+${multiAgent.lanes
+  .map(
+    (lane) =>
+      `- **${lane.agentName}** (${lane.status}): Work On \`${lane.workOnPaths}\` | Stay Away From \`${lane.stayAwayPaths}\``
+  )
+  .join('\n')}`
+    : '### 9. Multi-Agent Coordination\n- Single-agent sequential workflow active (enable Multi-Agent Collaboration to generate `COLLABORATION.md` lane locks).';
+
+  const raw = `# Technical Implementation Plan: ${state.appName}
+
+> **Summary:** ${state.tagline || 'No tagline provided.'}
+> **Target Platform:** ${PLATFORM_LABELS[state.targetPlatform]}
+> **Preferred Coding Language:** ${getCodingLanguageLabel(state)}
+
+---
+
+## 1. System Architecture & Data Flow
+${state.appName} enforces a strict separation between the sandboxed UI layer, deterministic specification/validation logic, AI synthesis adapters (\`{{primary_model}}\`), and local OS/filesystem boundaries on \`{{target_os}}\`.
 
 \`\`\`
-[Frontend UI & Stacked Decks]
-    │
-    ├──► [Gemini AI Service ({{primary_model}})] ──► Live Contract Compiler
-    │
+[User Interface & Multi-Screen Views]
+    │  (Typed Domain State + Optimistic Updates)
+    ▼
+[State Manager & Live Contract Compiler]
+    ├──► [Offline Validation & Persistence] ──► localStorage / Disk Exports
+    ├──► [Cloud Gemini Service ({{primary_model}})] ──► Express / Tauri Proxy (30s timeout)
+    ${
+      localAgents.enabled
+        ? `├──► [Local AI Runtime (${localAgents.ollamaModel} @ ${localAgents.ollamaEndpoint})]`
+        : '└──► [Tauri IPC / OS Native Bridge]'
+    }
     └──► [Tauri IPC / Native Layer]
-             │
-             ▼
-[Backend & Storage]
-    ├──► Canonical Filesystem Writer (spec.md, plan.md, tasks.md, AGENTS.md)
-    └──► System Keyring Credential Guard
+             ├──► Canonical Path Guard + Atomic Spec Bundle Writer
+             └──► System Keyring Credential Guard
 \`\`\`
 
-- **Preferred Coding Language:** ${getCodingLanguageLabel(state)}
-- **Stack Summary:** ${state.proConfig.stackSummary}
-- **Architecture Pattern:** ${state.proConfig.architectureStyle}
+- **Tech Stack Summary:** ${state.proConfig.stackSummary}
+- **Architecture Style:** ${state.proConfig.architectureStyle}
+- **Slicing Strategy:** \`${state.proConfig.taskSlicingMode}\`
 
-## 2. Key Data Models (TypeScript)
+---
+
+## 2. Feature-to-Module Architecture Matrix
+
+| Feature ID | User Capability | Execution Path |
+| --- | --- | --- |
+${featureArchRows}
+
+---
+
+## 3. UI Surfaces & Multi-Screen Hierarchy
+- **Global Visual Direction:** ${state.stitchUi?.visualDirection || 'Twilight dark palette (`#0F0C1B` canvas, frosted cards, `{{accent_color}}` accents, `#34D399` status badges).'}
+- **Defined Screens & Menus:**
+${screensInventory}
+${stitchSection}
+
+---
+
+## 4. Key Domain Models & Validation Rules
 
 \`\`\`typescript
-export type ComplexityMode = 'simple' | 'balanced' | 'pro';
 export type TargetPlatform = '${state.targetPlatform}';
+export type CodingLanguageId = '${state.codingLanguage || 'auto'}';
 
 export interface ProjectState {
+  id: string;
   appName: string; // "${state.appName}"
   tagline: string;
   coreIdea: string;
   targetPlatform: TargetPlatform;
-  features: string[];
+  codingLanguage?: CodingLanguageId;
+  features: string[]; // ${safeFeatures.length} defined features
   groundRules: {
     offlineFirst: ${state.groundRules.offlineFirst};
     highPerformance: ${state.groundRules.highPerformance};
     localPrivacy: ${state.groundRules.localPrivacy};
     darkModeDefault: ${state.groundRules.darkModeDefault};
   };
-  clarifications: Array<{
-    id: string;
-    category: string;
-    question: string;
-    options: string[];
-    selectedAnswer?: string;
-  }>;
-  customRules: string[];
+  clarifications: Array<{ id: string; category: string; question: string; selectedAnswer?: string }>;
 }
 \`\`\`
 
-## 3. Native & Backend Command Contracts
+- **Input Validation Rules**: Reject empty directory paths, block \`..\` path traversal, validate request payloads before hitting AI SDKs, and enforce O(n) linear scanning on template token inspection.
 
-- \`save_spec_bundle(target_dir: String, files: HashMap<String, String>) -> Result<bool, String>\`
-  - Canonicalizes destination directory path (default: \`{{export_dir}}\`).
-  - Validates write permissions and rejects directory traversal sequences (\`../\`).
-  - Atomically writes \`AGENTS.md\`, \`spec.md\`, \`plan.md\`, and \`tasks.md\` to disk.
-- \`get_secure_key(service: String) -> Result<String, String>\`
-  - Queries local desktop keyring or server secret environment for the Gemini API key.
-- \`set_secure_key(service: String, key: String) -> Result<(), String>\`
-  - Stores credentials securely in the system keyring.
+---
 
-## 4. UI Design & Quality Invariants
-- **Color Tokens:** Deep twilight canvas (\`#0F0C1B\`), frosted purple cards (\`rgba(27, 21, 46, 0.75)\` with 12px blur), primary accent (\`{{accent_color}}\`), luminous pink tokens (\`#EC4899\`), and mint status badges (\`#34D399\`).
-- **Accessibility:** All section headers and controls mount accessible hover tooltips (\`role="tooltip"\`).
-- **Testing Strategy:** ${state.proConfig.testingStrategy}
+## 5. Native IPC & Backend API Contracts
+1. **\`save_spec_bundle(target_dir: String, files: HashMap<String, String>) -> Result<bool, String>\`**
+   - Expands \`~/\`, verifies directory boundaries, enforces symlink-escape rejection, atomically renames temporary writes for \`AGENTS.md\`, \`spec.md\`, \`plan.md\`, \`tasks.md\`, \`COLLABORATION.md\`, and \`.continuerules\`.
+2. **\`get_secure_key\` / \`set_secure_key\` / \`has_secure_key\`**
+   - Reads and persists Gemini API keys via OS keyring without writing credentials to repo files or logs.
+3. **\`POST /api/gemini/*\` & \`gemini_proxy_request\`**
+   - Supports \`expand\`, \`random-idea\`, \`grill\`, \`fill-field\`, \`mini-grill\`, \`stitch-surprise\`, and \`recommend-language\` with explicit model selection (\`{{primary_model}}\`), fast thinking budgets (\`LOW\`/\`MINIMAL\`), and 30-second AbortController timeouts.
+4. **\`POST /api/export/bundle\` & \`POST /api/specs/validate\`**
+   - Deterministic ZIP + \`SHA256SUMS.txt\` archive generator and offline spec-readiness auditor.
+
+---
+
+## 6. Offline Resilience, Performance & Error Recovery
+- **Offline First (${state.groundRules.offlineFirst ? 'Required' : 'Optional'})**: Form edits and recent blueprints save locally in \`localStorage\`; deterministic compilation and offline checks run without network access.
+- **Latency Budget (${state.groundRules.highPerformance ? '<200ms UI' : 'Standard'})**: Use low/minimal model thinking presets on Flash/Lite models for quick interactive AI actions; retain user text non-destructively when upstream AI calls time out or fail.
+- **Accessibility**: Every interactive control, header, blank input, and card mounts plain-English \`role="tooltip"\` explainers.
+
+---
+
+## 7. Security Boundaries, Phased Milestones & Verification Matrix
 - **Security Boundary:** ${state.proConfig.securityBoundary}
+- **Testing Strategy:** ${state.proConfig.testingStrategy}
+
+| Milestone Phase | Deliverable | Required Verification Gate |
+| --- | --- | --- |
+| Phase 1 · Core Models & UI | Multi-screen Stitch layout + domain types | \`npx tsc --noEmit\` (0 errors) |
+| Phase 2 · Backend & IPC | Rate-limited Express routes + Rust IPC guards | \`npm test\` + \`cargo test\` |
+| Phase 3 · Packaging & Polish | Production Vite build + Ubuntu Tauri bundle | \`npm run build\` + \`cargo clippy -- -D warnings\` |
+
+---
+
+${localAgentPlan}
+
+${multiAgentPlan}
 `;
 
+  return interpolateVariables(raw, state.proConfig.templateVariables);
+}
+
+export function compileCollaborationMd(state: ProjectState): string {
+  const multiAgent = state.multiAgent ?? DEFAULT_MULTI_AGENT;
+  const laneRows = multiAgent.lanes
+    .map(
+      (lane) =>
+        `| ${lane.agentName} | ${lane.focusArea} | \`${lane.workOnPaths}\` | \`${lane.stayAwayPaths}\` | **${lane.status.toUpperCase()}** | ${lane.handoffNote || 'Sync before merging'} |`
+    )
+    .join('\n');
+
+  const laneSections = multiAgent.lanes
+    .map(
+      (lane, idx) => `### Lane ${idx + 1}: ${lane.agentName}
+- **Focus Area:** ${lane.focusArea}
+- **Current Status:** \`${lane.status}\`
+- **WORK ON (Owned Scope):** \`${lane.workOnPaths}\`
+- **STAY AWAY FROM (Do Not Modify):** \`${lane.stayAwayPaths}\`
+- **Handoff & Coordination Note:** ${lane.handoffNote || 'Document any interface changes here before marking done.'}`
+    )
+    .join('\n\n');
+
+  const raw = `# Multi-Agent Collaboration & File Boundary Board — ${state.appName}
+
+> **Purpose:** Shared coordination ledger for parallel AI coding agents working on **${state.appName}** (${getCodingLanguageLabel(state)}).
+> Read this file before touching any code, claim your active lane, respect **Stay Away From** boundaries, and record handoff notes when done.
+
+## 1. Status Overview (${multiAgent.enabled ? 'MULTI-AGENT MODE ACTIVE' : 'SINGLE-AGENT / STANDBY'})
+
+| Agent | Focus Area | Work On (Allowed Paths) | Stay Away From (Restricted) | Status | Handoff Note |
+| --- | --- | --- | --- | --- | --- |
+${laneRows}
+
+## 2. Detailed Agent Boundaries
+
+${laneSections}
+
+## 3. Shared Coordination Protocol
+${multiAgent.sharedProtocolNotes || DEFAULT_MULTI_AGENT.sharedProtocolNotes}
+
+### Mandatory Merge & Handoff Checklist
+1. **Before Starting:** Check the status table above and set your lane status to \`in-progress\`. Do not edit files listed under another agent's **Work On** column without leaving a note here first.
+2. **Contract Changes:** If a shared domain type (\`src/types/project.ts\` or IPC schema) must change, update the contract summary in Section 4 below before downstream agents consume it.
+3. **Before Marking Done:** Run \`npx tsc --noEmit\`, \`npm test\`, and \`cargo test --manifest-path src-tauri/Cargo.toml\` (if Rust changed), update your **Handoff Note**, and switch status to \`done\`.
+
+## 4. Shared Contract Notes & Active Locks
+- **Active Project**: \`${state.appName}\` (\`${state.targetPlatform}\`, language: \`${state.codingLanguage || 'auto'}\`)
+- **Features Locked for Build**: ${(state.features || []).length} defined features
+- **Verification Owner**: Last lane touching integration tests confirms full suite green.
+`;
+
+  return interpolateVariables(raw, state.proConfig.templateVariables);
+}
+
+export function compileContinueRules(state: ProjectState): string {
+  const local = state.localAgents ?? DEFAULT_LOCAL_AGENTS;
+  const raw = `# PromptForge Local AI Rules (.continuerules) — ${state.appName}
+# Compatible with Continue IDE Extension + Ollama (${local.ollamaModel} @ ${local.ollamaEndpoint})
+
+## Project Overview
+- App: ${state.appName} — ${state.tagline}
+- Platform: ${PLATFORM_LABELS[state.targetPlatform]}
+- Preferred Language: ${getCodingLanguageLabel(state)}
+- Idea: ${state.coreIdea}
+
+## Feature Requirements
+${(state.features || []).map((f, i) => `${i + 1}. ${f}`).join('\n')}
+
+## Architectural & Security Guardrails
+- Stack: ${state.proConfig.stackSummary}
+- Architecture: ${state.proConfig.architectureStyle}
+- Testing: ${state.proConfig.testingStrategy}
+- Security: ${state.proConfig.securityBoundary}
+${(state.proConfig.customRules || []).map((r) => `- Rule: ${r}`).join('\n')}
+
+## Local Model & Continue Instructions
+- Provider Preference: ${local.provider}
+- Ollama Endpoint: ${local.ollamaEndpoint}
+- Recommended Local Model: ${local.ollamaModel}
+- Notes: ${local.notes || 'Keep inference 100% local and never embed API keys in repo files.'}
+${
+  (state.multiAgent?.enabled ?? false)
+    ? `- Multi-Agent Active: Respect path ownership boundaries declared in COLLABORATION.md.`
+    : ''
+}
+`;
+  return interpolateVariables(raw, state.proConfig.templateVariables);
+}
+
+export function compileStitchScreenPrompt(
+  state: ProjectState,
+  screen: StitchScreenPrompt
+): string {
+  const stitch = state.stitchUi;
+  const raw = `# Google Stitch UI Prompt — ${state.appName} · ${screen.name} (${screen.kind.toUpperCase()})
+
+Design a focused, high-precision **${screen.kind}** view named **"${screen.name}"** for **${state.appName}** (${state.tagline || 'No tagline'}) targeting **${PLATFORM_LABELS[state.targetPlatform]}**.
+
+## Specific Requirements for "${screen.name}"
+- **Surface Type:** ${screen.kind}
+- **Layout & Component Notes:** ${screen.notes || 'Clean hierarchy matching overall app visual language.'}
+
+## Consistent App Visual Direction
+- ${stitch?.visualDirection || 'Deep twilight glassmorphic workstation (#0F0C1B canvas, frosted #1B152E cards, {{accent_color}} primary accents, #34D399 status badges).'}
+- Keep spacing, typography, dark contrast ratios (WCAG AA), and component geometry consistent with the rest of ${state.appName}.
+
+## Related Features Connected to This Surface
+${(state.features || []).map((f, i) => `${i + 1}. ${f}`).join('\n') || '1. Primary user actions'}
+`;
   return interpolateVariables(raw, state.proConfig.templateVariables);
 }
 
@@ -374,6 +583,10 @@ export function compileSpecFile(state: ProjectState, fileId: SpecFileId): string
       return compileTasksMd(state);
     case 'AGENTS.md':
       return compileAgentsMd(state);
+    case 'COLLABORATION.md':
+      return compileCollaborationMd(state);
+    case '.continuerules':
+      return compileContinueRules(state);
     case 'src-tauri/src/lib.rs':
       return compileRustLibRs(state);
   }
@@ -437,6 +650,10 @@ export function compilePlatformContract(
 
   switch (platform) {
     case 'stitch': {
+      const configuredScreens = (stitch?.screens || [])
+        .filter((s) => s.name.trim())
+        .map((s) => `• **${s.name}** (${s.kind}): ${s.notes || 'Follow shared glassmorphic tokens.'}`)
+        .join('\n');
       const promptText = interpolateVariables(
         `# Google Stitch UI Generation Contract — ${state.appName}
 
@@ -449,8 +666,8 @@ ${stitch?.visualDirection ? `- **Visual Direction:** ${stitch.visualDirection}` 
 - **Reference Images**:
 ${referenceImagesSummary}
 
-## 2. Core Screens & Feature Flows to Render
-${featuresBullets}
+## 2. Core Screens, Menus & Feature Flows to Render
+${configuredScreens ? `${configuredScreens}\n\n` : ''}${featuresBullets}
 
 ## 3. Confirmed UI & Layout Decisions
 ${uiDecisionsSummary}
@@ -592,6 +809,41 @@ ${stitchResultContext}`,
         title: 'Gemini Canvas',
         subtitle: 'Interactive live preview iteration, micro-interactions & copy polish',
         badge: 'Canvas Iteration Prompt',
+        promptText,
+      };
+    }
+
+    case 'local-ollama': {
+      const local = state.localAgents ?? DEFAULT_LOCAL_AGENTS;
+      const promptText = interpolateVariables(
+        `# Local AI Agents Setup (Ollama + Continue) — ${state.appName}
+
+Run coding & refactoring assistance 100% locally on your machine using **Ollama** (\`${local.ollamaModel}\`) and **Continue** IDE extension.
+
+## 1. Quick Local Setup Commands
+\`\`\`bash
+# Pull & run your local coding model via Ollama
+ollama pull ${local.ollamaModel}
+OLLAMA_HOST=${local.ollamaEndpoint} ollama serve
+\`\`\`
+
+## 2. Continue Config Snippet (~/.continue/config.yaml)
+\`\`\`yaml
+models:
+  - name: PromptForge Local Coder (${local.ollamaModel})
+    provider: ollama
+    model: ${local.ollamaModel}
+    apiBase: ${local.ollamaEndpoint}
+\`\`\`
+
+## 3. Repository Rules (.continuerules)
+${compileContinueRules(state)}`,
+        state.proConfig.templateVariables
+      );
+      return {
+        title: 'Local AI (Ollama / Continue)',
+        subtitle: 'Offline open-weight model setup, ~/.continue/config.yaml & .continuerules',
+        badge: 'Local Agent Contract',
         promptText,
       };
     }

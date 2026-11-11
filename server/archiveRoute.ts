@@ -2,7 +2,14 @@ import express, { Application, Request, Response } from 'express';
 import crypto from 'node:crypto';
 
 
-const ALLOWED_FILES = ['AGENTS.md', 'spec.md', 'plan.md', 'tasks.md'];
+const ALLOWED_FILES = [
+  'AGENTS.md',
+  'spec.md',
+  'plan.md',
+  'tasks.md',
+  'COLLABORATION.md',
+  '.continuerules',
+];
 
 /**
  * Registers the POST /api/export/bundle endpoint for downloading allowed spec files as a ZIP with SHA-256 checksums.

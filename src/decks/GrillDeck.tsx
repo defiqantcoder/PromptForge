@@ -1,5 +1,5 @@
 import React from 'react';
-import { CheckCircle2, Loader2, MessageSquare, RefreshCw, Sparkles } from 'lucide-react';
+import { CheckCircle2, Loader2, MessageSquare, RefreshCw, Sparkles, Trash2 } from 'lucide-react';
 import { ProjectState } from '../types/project';
 import { DeckCard } from '../components/Card';
 import { ExplainerTooltip, HelpBadge } from '../components/Tooltip';
@@ -31,12 +31,28 @@ export function GrillDeck({
     }));
   };
 
+  const handleRemoveQuestion = (questionId: string) => {
+    onUpdate((prev) => ({
+      ...prev,
+      clarifications: prev.clarifications.filter((item) => item.id !== questionId),
+      lastUpdated: new Date().toISOString(),
+    }));
+  };
+
+  const handleClearAllQuestions = () => {
+    onUpdate((prev) => ({
+      ...prev,
+      clarifications: [],
+      lastUpdated: new Date().toISOString(),
+    }));
+  };
+
   return (
     <DeckCard
       id="deck-grill"
       stepNumber="03."
       title={'"Grill Me" — Dynamic Clarification Interview'}
-      subtitle="Questions automatically adapt as you edit your idea, features, coding language, or ground rules—or refresh anytime for 3 fresh questions."
+      subtitle="Asks 5 targeted follow-up questions per round while keeping all previous questions & answers remembered."
       tooltipKey="deck-grill"
       headerRight={
         <div className="flex flex-wrap items-center gap-2">
@@ -44,22 +60,36 @@ export function GrillDeck({
             {isAutoRefreshing || isGrilling ? (
               <>
                 <RefreshCw className="w-3 h-3 animate-spin text-[#EC4899]" />
-                <span>Adapting to your edits...</span>
+                <span>Appending fresh questions...</span>
               </>
             ) : (
               <>
                 <Sparkles className="w-3 h-3 text-[#34D399]" />
                 <span>
                   {lastSyncedAt
-                    ? `Dynamic sync · ${new Date(lastSyncedAt).toLocaleTimeString([], {
+                    ? `${state.clarifications.length} saved · synced ${new Date(
+                        lastSyncedAt
+                      ).toLocaleTimeString([], {
                         hour: '2-digit',
                         minute: '2-digit',
                       })}`
-                    : 'Dynamic AI ready'}
+                    : `${state.clarifications.length} remembered Q&A`}
                 </span>
               </>
             )}
           </span>
+
+          {state.clarifications.length > 0 && (
+            <button
+              type="button"
+              onClick={handleClearAllQuestions}
+              className="pf-btn-secondary inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium text-[#CBC3D7] hover:text-[#FFB4AB] whitespace-nowrap shrink-0 cursor-pointer"
+              title="Clear saved clarification questions"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>Clear All</span>
+            </button>
+          )}
 
           <span className="inline-flex items-center gap-1">
             <ExplainerTooltip tooltipKey="action-grill-me" side="bottom">
@@ -75,7 +105,11 @@ export function GrillDeck({
                   <MessageSquare className="w-3.5 h-3.5" />
                 )}
                 <span>
-                  {isGrilling ? 'Analyzing Idea...' : 'Grill Me (Ask 3 Fresh Questions)'}
+                  {isGrilling
+                    ? 'Asking 5 Questions...'
+                    : state.clarifications.length > 0
+                    ? 'Grill Me (+5 More Questions)'
+                    : 'Grill Me (Ask 5 Questions)'}
                 </span>
               </button>
             </ExplainerTooltip>
@@ -92,7 +126,7 @@ export function GrillDeck({
               No Clarification Questions Generated Yet
             </h3>
             <p className="text-xs text-[#CBC3D7] max-w-md mx-auto">
-              Click "Grill Me" above—or edit your idea above—so Gemini can spot edge cases and suggest 3 tailored multiple-choice decisions.
+              Click "Grill Me" above—or edit your idea above—so AI can spot edge cases and suggest 5 tailored multiple-choice decisions while remembering your prior answers.
             </p>
           </div>
         </div>
@@ -112,12 +146,22 @@ export function GrillDeck({
                   <span className="font-medium text-[#EC4899]">{item.category}</span>
                   <HelpBadge tooltipKey="deck-grill" />
                 </div>
-                {item.selectedAnswer && (
-                  <span className="inline-flex items-center gap-1 text-[11px] font-medium text-[#34D399]">
-                    <CheckCircle2 className="w-3.5 h-3.5" />
-                    <span>Folded into spec.md & AGENTS.md</span>
-                  </span>
-                )}
+                <div className="flex items-center gap-2">
+                  {item.selectedAnswer && (
+                    <span className="inline-flex items-center gap-1 text-[11px] font-medium text-[#34D399]">
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      <span>Folded into spec.md & AGENTS.md</span>
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveQuestion(item.id)}
+                    aria-label={`Remove question ${qIndex + 1}`}
+                    className="p-1 rounded-md text-[#958EA0] hover:text-[#FFB4AB] hover:bg-[#EF4444]/15 transition-colors cursor-pointer"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               </div>
 
               <p className="text-sm font-semibold text-white">{item.question}</p>

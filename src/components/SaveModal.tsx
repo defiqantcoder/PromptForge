@@ -15,6 +15,8 @@ import {
 import { ProjectState, SaveBundleResult } from '../types/project';
 import {
   compileAgentsMd,
+  compileCollaborationMd,
+  compileContinueRules,
   compilePlanMd,
   compileSpecMd,
   compileTasksMd,
@@ -44,7 +46,7 @@ const UBUNTU_QUICK_DIRS = [
   {
     label: 'Current Repository Root',
     path: '~/workspace/app-spec',
-    description: 'Direct handoff for Antigravity / Copilot',
+    description: 'Direct handoff for Antigravity / Local AI',
   },
   {
     label: 'Documents Blueprints',
@@ -74,6 +76,12 @@ export function SaveModal({ open, onOpenChange, state }: SaveModalProps) {
     'spec.md': compileSpecMd(state),
     'plan.md': compilePlanMd(state),
     'tasks.md': compileTasksMd(state),
+    ...(state.multiAgent?.enabled
+      ? { 'COLLABORATION.md': compileCollaborationMd(state) }
+      : {}),
+    ...(state.localAgents?.enabled
+      ? { '.continuerules': compileContinueRules(state) }
+      : {}),
   };
 
   const pathCheck = canonicalizeLinuxPath(targetDir, nativeHome);

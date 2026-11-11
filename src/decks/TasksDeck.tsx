@@ -16,7 +16,10 @@ import { HelpBadge, LabelWithTooltip } from '../components/Tooltip';
 interface TasksDeckProps {
   state: ProjectState;
   onUpdate: (updater: (prev: ProjectState) => ProjectState) => void;
-  onFillField: (field: FillableFieldId) => Promise<FillFieldResponse | null>;
+  onFillField: (
+    field: FillableFieldId,
+    options?: { currentValue?: string }
+  ) => Promise<FillFieldResponse | null>;
   fillingField: FillableFieldId | null;
   onMiniGrill: (topic: MiniGrillTopic) => Promise<void>;
   miniGrillLoadingTopic: MiniGrillTopic | null;
@@ -156,7 +159,7 @@ export function TasksDeck({
   };
 
   const handleFillVariable = async () => {
-    const res = await onFillField('templateVariable');
+    const res = await onFillField('templateVariable', { currentValue: newVarKey });
     if (res?.value) {
       setNewVarKey(res.value.trim().replace(/[^a-zA-Z0-9_]/g, '_').toLowerCase());
       setNewVarVal(res.secondaryValue || '');
@@ -164,7 +167,7 @@ export function TasksDeck({
   };
 
   const handleFillCustomRule = async () => {
-    const res = await onFillField('customRule');
+    const res = await onFillField('customRule', { currentValue: newRule });
     if (res?.value) {
       setNewRule(res.value);
     }
@@ -276,8 +279,10 @@ export function TasksDeck({
                 <FillWithAiButton
                   fieldLabel={label}
                   loading={fillingField === field}
-                  disabled={Boolean(fillingField) && fillingField !== field}
-                  onClick={() => void onFillField(field)}
+                  disabled={fillingField === field}
+                  onClick={() =>
+                    void onFillField(field, { currentValue: state.proConfig[field] })
+                  }
                 />
               </div>
             </div>
@@ -340,7 +345,7 @@ export function TasksDeck({
             <FillWithAiButton
               fieldLabel="Dynamic Token"
               loading={fillingField === 'templateVariable'}
-              disabled={Boolean(fillingField) && fillingField !== 'templateVariable'}
+              disabled={fillingField === 'templateVariable'}
               onClick={() => void handleFillVariable()}
             />
             <button
@@ -396,7 +401,7 @@ export function TasksDeck({
             <FillWithAiButton
               fieldLabel="Custom Coding Rule"
               loading={fillingField === 'customRule'}
-              disabled={Boolean(fillingField) && fillingField !== 'customRule'}
+              disabled={fillingField === 'customRule'}
               onClick={() => void handleFillCustomRule()}
             />
             <button

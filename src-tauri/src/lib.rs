@@ -97,12 +97,14 @@ fn has_secure_key(service: String) -> Result<bool, String> {
 async fn gemini_proxy_request(endpoint: String, payload: Value) -> Result<Value, String> {
     let kind = gemini::normalize_gemini_endpoint(&endpoint)?;
     let api_key = resolve_gemini_api_key()?;
+    let (model_id, _) = gemini::resolve_model_and_thinking(&payload);
+    let model_url = format!("{}{}:generateContent", gemini::GEMINI_MODELS_BASE_URL, model_id);
     let request_body = gemini::build_gemini_request_body(kind, &payload)?;
 
     let client = gemini::get_http_client();
 
     let response = client
-        .post(gemini::GEMINI_MODEL_ENDPOINT)
+        .post(&model_url)
         .header("x-goog-api-key", api_key)
         .header("User-Agent", "promptforge-desktop")
         .json(&request_body)

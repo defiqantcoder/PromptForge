@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
   AlertTriangle,
   CheckCircle2,
+  Cpu,
   FileCode2,
   FileText,
   FolderKanban,
@@ -14,6 +15,7 @@ import {
   X,
 } from 'lucide-react';
 import {
+  AiModelId,
   ClarificationItem,
   ComplexityMode,
   ExportPlatformId,
@@ -24,7 +26,10 @@ import {
   SpecFileId,
 } from './types/project';
 import {
+  AI_MODELS,
   createInitialRecentBlueprints,
+  DEFAULT_LOCAL_AGENTS,
+  DEFAULT_MULTI_AGENT,
   DEFAULT_PROJECT_STATE,
   DEFAULT_STITCH_UI,
   FALLBACK_RANDOM_IDEAS,
@@ -63,6 +68,45 @@ const STORAGE_KEY = 'promptforge_workstation_state_v1';
 const MODE_STORAGE_KEY = 'promptforge_complexity_mode_v1';
 const RECENT_BLUEPRINTS_KEY = 'promptforge_recent_blueprints_v1';
 
+function mergeClarifications(
+  existing: ClarificationItem[],
+  incoming: ClarificationItem[]
+): ClarificationItem[] {
+  const result = [...existing];
+  const seenQuestions = new Set(
+    existing.map((q) => q.question.trim().toLowerCase())
+  );
+  const seenIds = new Set(existing.map((q) => q.id));
+
+  for (const item of incoming) {
+    const normalizedQ = item.question.trim().toLowerCase();
+    if (!normalizedQ || seenQuestions.has(normalizedQ)) {
+      continue;
+    }
+    const uniqueId = seenIds.has(item.id)
+      ? `${item.id}-${result.length + 1}`
+      : item.id;
+    seenQuestions.add(normalizedQ);
+    seenIds.add(uniqueId);
+    result.push({
+      ...item,
+      id: uniqueId,
+      selectedAnswer: item.selectedAnswer || item.options[0] || '',
+    });
+  }
+  return result;
+}
+
+function getSecureRandomIndex(length: number): number {
+  if (length <= 1) return 0;
+  if (typeof globalThis !== 'undefined' && globalThis.crypto?.getRandomValues) {
+    const arr = new Uint32Array(1);
+    globalThis.crypto.getRandomValues(arr);
+    return arr[0] % length;
+  }
+  return Date.now() % length;
+}
+
 function normalizeProjectState(raw: Partial<ProjectState> | null | undefined): ProjectState {
   if (!raw || typeof raw.appName !== 'string') {
     return DEFAULT_PROJECT_STATE;
@@ -70,6 +114,7 @@ function normalizeProjectState(raw: Partial<ProjectState> | null | undefined): P
   return {
     ...DEFAULT_PROJECT_STATE,
     ...raw,
+    aiModel: raw.aiModel ?? DEFAULT_PROJECT_STATE.aiModel ?? 'gemini-3.8-flash',
     codingLanguage: raw.codingLanguage ?? DEFAULT_PROJECT_STATE.codingLanguage,
     codingLanguageNote: raw.codingLanguageNote ?? '',
     groundRules: {
@@ -87,6 +132,18 @@ function normalizeProjectState(raw: Partial<ProjectState> | null | undefined): P
       uiClarifications: Array.isArray(raw.stitchUi?.uiClarifications)
         ? raw.stitchUi.uiClarifications
         : [],
+      screens: Array.isArray(raw.stitchUi?.screens) ? raw.stitchUi.screens : [],
+    },
+    localAgents: {
+      ...DEFAULT_LOCAL_AGENTS,
+      ...(raw.localAgents ?? {}),
+    },
+    multiAgent: {
+      ...DEFAULT_MULTI_AGENT,
+      ...(raw.multiAgent ?? {}),
+      lanes: Array.isArray(raw.multiAgent?.lanes)
+        ? raw.multiAgent.lanes
+        : DEFAULT_MULTI_AGENT.lanes,
     },
     workflowProgress: {
       stitchDone:
@@ -119,12 +176,22 @@ const SPEC_FILES: Array<{ id: SpecFileId; label: string; desc: string }> = [
   {
     id: 'plan.md',
     label: 'plan.md',
-    desc: 'System architecture flow, TypeScript models & Tauri IPC contracts',
+    desc: 'Comprehensive architecture, domain models, IPC contracts & test matrix',
   },
   {
     id: 'tasks.md',
     label: 'tasks.md',
     desc: 'Ordered HITL/AFK implementation tasks & verification steps',
+  },
+  {
+    id: 'COLLABORATION.md',
+    label: 'COLLABORATION.md',
+    desc: 'Multi-agent coordination board with Work-On vs. Stay-Away path lanes',
+  },
+  {
+    id: '.continuerules',
+    label: '.continuerules',
+    desc: 'Optional offline local AI instructions for Ollama & Continue IDE',
   },
   {
     id: 'src-tauri/src/lib.rs',
@@ -137,8 +204,9 @@ const PLATFORM_TABS: Array<{ id: ExportPlatformId; label: string }> = [
   { id: 'stitch', label: 'Stitch' },
   { id: 'aistudio', label: 'AI Studio' },
   { id: 'antigravity', label: 'Antigravity' },
-  { id: 'copilot', label: 'Copilot' },
   { id: 'canvas', label: 'Canvas' },
+  { id: 'local-ollama', label: 'Local AI' },
+  { id: 'copilot', label: 'Copilot' },
 ];
 
 export function App() {
@@ -311,6 +379,7 @@ export function App() {
         coreIdea: projectState.coreIdea,
         targetPlatform: projectState.targetPlatform,
         features: projectState.features,
+        aiModel: projectState.aiModel,
       });
 
       setProjectState((prev) => ({
@@ -351,7 +420,7 @@ export function App() {
     setPreviousSnapshot(projectState);
 
     try {
-      const result = await generateRandomAppIdea();
+      const result = await generateRandomAppIdea(undefined, projectState.aiModel);
       const validPlatform =
         result.targetPlatform === 'desktop' ||
         result.targetPlatform === 'web' ||
@@ -392,9 +461,10 @@ export function App() {
     } catch {
       // Fallback to rich curated idea if offline so button always delights the user
       const fallback =
-        FALLBACK_RANDOM_IDEAS[Math.floor(Math.random() * FALLBACK_RANDOM_IDEAS.length)];
+        FALLBACK_RANDOM_IDEAS[getSecureRandomIndex(FALLBACK_RANDOM_IDEAS.length)];
       setProjectState({
         ...fallback,
+        aiModel: projectState.aiModel ?? 'gemini-3.8-flash',
         id: `curated-idea-${Date.now()}`,
         lastUpdated: new Date().toISOString(),
       });
@@ -407,7 +477,7 @@ export function App() {
     }
   };
 
-  // 3. Socratic Interrogator ("Grill Me") — manual & dynamic debounced refresh
+  // 3. Socratic Interrogator ("Grill Me") — remembers old answers & appends 5 fresh questions
   const handleGrillMe = async () => {
     if (isGrilling) return;
     setIsGrilling(true);
@@ -416,15 +486,22 @@ export function App() {
     try {
       const result = await generateGrillQuestions(projectState);
       if (Array.isArray(result.questions) && result.questions.length > 0) {
-        setProjectState((prev) => ({
-          ...prev,
-          clarifications: result.questions,
-          lastUpdated: new Date().toISOString(),
-        }));
+        let addedCount = 0;
+        setProjectState((prev) => {
+          const merged = mergeClarifications(prev.clarifications, result.questions);
+          addedCount = merged.length - prev.clarifications.length;
+          return {
+            ...prev,
+            clarifications: merged,
+            lastUpdated: new Date().toISOString(),
+          };
+        });
         setLastGrillSyncedAt(new Date().toISOString());
         showToast(
           'success',
-          'Generated 3 dynamic clarification questions tailored to your current project entries.'
+          addedCount > 0
+            ? `Added ${addedCount} new clarification questions while keeping all prior Q&A remembered.`
+            : 'Refreshed clarifications; all generated topics are already answered above.'
         );
       }
     } catch (err: any) {
@@ -479,13 +556,7 @@ export function App() {
         if (!cancelled && Array.isArray(result.questions) && result.questions.length > 0) {
           setProjectState((prev) => ({
             ...prev,
-            clarifications: result.questions.map((nextQ) => {
-              const prevMatch = prev.clarifications.find((oldQ) => oldQ.id === nextQ.id);
-              return prevMatch?.selectedAnswer &&
-                nextQ.options.includes(prevMatch.selectedAnswer)
-                ? { ...nextQ, selectedAnswer: prevMatch.selectedAnswer }
-                : nextQ;
-            }),
+            clarifications: mergeClarifications(prev.clarifications, result.questions),
           }));
           setLastGrillSyncedAt(new Date().toISOString());
         }
@@ -502,16 +573,19 @@ export function App() {
     };
   }, [grillContextFingerprint, isExpanding, isGeneratingRandom, isGrilling]);
 
-  // 4. Context-Aware Single-Field Fill with AI (using ALL filled fields)
+  // 4. Context-Aware Single-Field Fill with AI (unlimited runs per field)
   const handleFillField = async (
-    field: FillableFieldId
+    field: FillableFieldId,
+    options?: { currentValue?: string }
   ): Promise<FillFieldResponse | null> => {
-    if (fillingField) return null;
+    if (fillingField === field) return null;
     setFillingField(field);
     setBannerMessage(null);
 
     try {
-      const result = await fillFieldWithAi(field, projectState);
+      const result = await fillFieldWithAi(field, projectState, {
+        currentValue: options?.currentValue,
+      });
       const val = result.value?.trim();
       if (!val) {
         showToast(
@@ -544,6 +618,23 @@ export function App() {
           stitchUi: { ...(prev.stitchUi ?? DEFAULT_STITCH_UI), uploadedResultNotes: val },
           lastUpdated: now,
         }));
+      } else if (field === 'localAgentNotes') {
+        setPreviousSnapshot(projectState);
+        setProjectState((prev) => ({
+          ...prev,
+          localAgents: { ...(prev.localAgents ?? DEFAULT_LOCAL_AGENTS), notes: val },
+          lastUpdated: now,
+        }));
+      } else if (field === 'multiAgentProtocol') {
+        setPreviousSnapshot(projectState);
+        setProjectState((prev) => ({
+          ...prev,
+          multiAgent: {
+            ...(prev.multiAgent ?? DEFAULT_MULTI_AGENT),
+            sharedProtocolNotes: val,
+          },
+          lastUpdated: now,
+        }));
       } else if (
         field === 'stackSummary' ||
         field === 'architectureStyle' ||
@@ -558,7 +649,12 @@ export function App() {
         }));
       }
 
-      showToast('success', 'Filled field using context from all other filled sections.');
+      showToast(
+        'success',
+        options?.currentValue?.trim()
+          ? 'Refined field with a fresh AI variation—click again anytime for another pass.'
+          : 'Filled field using context from all other filled sections.'
+      );
       return result;
     } catch (err: unknown) {
       showToast(
@@ -718,6 +814,7 @@ export function App() {
       tagline: 'A clean-slate application specification.',
       coreIdea: '',
       targetPlatform: 'desktop',
+      aiModel: projectState.aiModel ?? 'gemini-3.8-flash',
       codingLanguage: 'auto',
       codingLanguageNote: '',
       features: [
@@ -736,6 +833,12 @@ export function App() {
       },
       stitchUi: {
         ...DEFAULT_STITCH_UI,
+      },
+      localAgents: {
+        ...DEFAULT_LOCAL_AGENTS,
+      },
+      multiAgent: {
+        ...DEFAULT_MULTI_AGENT,
       },
       workflowProgress: {
         stitchDone: false,
@@ -858,9 +961,40 @@ export function App() {
             </span>
           </div>
 
-          {/* Center: Three-Tier Complexity Mode Switcher */}
+          {/* Center: Three-Tier Complexity Mode Switcher & AI Model Selector */}
           <div className="flex flex-wrap items-center gap-3">
             <ModeSwitcher mode={mode} onChange={setMode} />
+
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#0F0C1B]/90 border border-[#C084FC]/25">
+              <Cpu className="w-3.5 h-3.5 text-[#34D399] shrink-0" />
+              <label htmlFor="select-ai-model" className="sr-only">
+                AI Model
+              </label>
+              <select
+                id="select-ai-model"
+                value={projectState.aiModel ?? 'gemini-3.8-flash'}
+                onChange={(e) => {
+                  const nextModel = e.target.value as AiModelId;
+                  setProjectState((prev) => ({
+                    ...prev,
+                    aiModel: nextModel,
+                    lastUpdated: new Date().toISOString(),
+                  }));
+                }}
+                className="bg-transparent text-xs font-medium text-[#E9D5FF] focus:outline-none cursor-pointer pr-1"
+              >
+                {AI_MODELS.map((m) => (
+                  <option
+                    key={m.id}
+                    value={m.id}
+                    className="bg-[#141122] text-white"
+                  >
+                    {m.label} ({m.speedTag})
+                  </option>
+                ))}
+              </select>
+              <HelpBadge tooltipKey="action-model-selector" side="bottom" />
+            </div>
 
             <span className="inline-flex items-center gap-1">
               <ExplainerTooltip tooltipKey="action-random-ai" side="bottom">

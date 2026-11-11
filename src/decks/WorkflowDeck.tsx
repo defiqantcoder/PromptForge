@@ -1,39 +1,53 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   ArrowRight,
   Check,
   CheckCircle2,
   Circle,
   Copy,
+  Cpu,
   Download,
   ExternalLink,
   FileCode2,
   FolderOutput,
   ImagePlus,
+  LayoutGrid,
   Loader2,
   Palette,
+  Plus,
   Rocket,
   Sparkles,
   Trash2,
   Upload,
+  Users,
 } from 'lucide-react';
 import {
+  AgentLane,
   ClarificationItem,
   FillableFieldId,
   MiniGrillTopic,
   ProjectState,
+  StitchScreenPrompt,
   UploadedIdeaImage,
   WorkflowProgress,
 } from '../types/project';
 import {
   compileAgentsMd,
+  compileCollaborationMd,
+  compileContinueRules,
   compilePlanMd,
   compilePlatformContract,
   compileSpecMd,
+  compileStitchScreenPrompt,
   compileTasksMd,
   recommendBuildWorkflow,
 } from '../services/compiler';
-import { DEFAULT_STITCH_UI } from '../services/presets';
+import {
+  DEFAULT_LOCAL_AGENTS,
+  DEFAULT_MULTI_AGENT,
+  DEFAULT_STITCH_UI,
+  OLLAMA_MODEL_PRESETS,
+} from '../services/presets';
 import { FillFieldResponse } from '../services/geminiClient';
 import { triggerBrowserFileDownload } from '../services/tauriBridge';
 import { DeckCard } from '../components/Card';
@@ -45,7 +59,10 @@ import { ExplainerTooltip, HelpBadge, LabelWithTooltip } from '../components/Too
 interface WorkflowDeckProps {
   state: ProjectState;
   onUpdate: (updater: (prev: ProjectState) => ProjectState) => void;
-  onFillField: (field: FillableFieldId) => Promise<FillFieldResponse | null>;
+  onFillField: (
+    field: FillableFieldId,
+    options?: { currentValue?: string }
+  ) => Promise<FillFieldResponse | null>;
   fillingField: FillableFieldId | null;
   onMiniGrill: (topic: MiniGrillTopic) => Promise<void>;
   miniGrillLoadingTopic: MiniGrillTopic | null;
@@ -75,6 +92,13 @@ const TEXT_EXTENSIONS = new Set([
   'jsx',
 ]);
 
+function generateSafeId(prefix: string): string {
+  if (typeof globalThis !== 'undefined' && globalThis.crypto?.randomUUID) {
+    return `${prefix}-${globalThis.crypto.randomUUID()}`;
+  }
+  return `${prefix}-${Date.now()}`;
+}
+
 export function WorkflowDeck({
   state,
   onUpdate,
@@ -89,9 +113,13 @@ export function WorkflowDeck({
 }: WorkflowDeckProps) {
   const ideaImageInputRef = useRef<HTMLInputElement>(null);
   const stitchResultInputRef = useRef<HTMLInputElement>(null);
-  const [copiedMdKey, setCopiedMdKey] = React.useState<string | null>(null);
+  const [copiedMdKey, setCopiedMdKey] = useState<string | null>(null);
+  const [fillingScreenId, setFillingScreenId] = useState<string | null>(null);
 
   const stitchUi = state.stitchUi ?? DEFAULT_STITCH_UI;
+  const stitchScreens = stitchUi.screens ?? [];
+  const localAgents = state.localAgents ?? DEFAULT_LOCAL_AGENTS;
+  const multiAgent = state.multiAgent ?? DEFAULT_MULTI_AGENT;
   const workflowProgress = state.workflowProgress ?? DEFAULT_PROGRESS;
 
   const workflow = recommendBuildWorkflow(state);
@@ -118,7 +146,7 @@ export function WorkflowDeck({
             reader.onload = () => {
               if (typeof reader.result === 'string') {
                 resolve({
-                  id: `${file.name}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+                  id: generateSafeId(`img-${file.name.replace(/[^a-z0-9]/gi, '')}`),
                   name: file.name,
                   mimeType: file.type,
                   dataUrl: reader.result,
@@ -161,6 +189,127 @@ export function WorkflowDeck({
         stitchUi: {
           ...currentStitch,
           ideaImages: currentStitch.ideaImages.filter((img) => img.id !== imageId),
+        },
+        lastUpdated: new Date().toISOString(),
+      };
+    });
+  };
+
+  const handleAddStitchScreen = () => {
+    const newScreen: StitchScreenPrompt = {
+      id: generateSafeId('screen'),
+      name: `Screen ${stitchScreens.length + 1}`,
+      kind: 'screen',
+      notes: '',
+    };
+    onUpdate((prev) => {
+      const currentStitch = prev.stitchUi ?? DEFAULT_STITCH_UI;
+      return {
+        ...prev,
+        stitchUi: {
+          ...currentStitch,
+          screens: [...(currentStitch.screens ?? []), newScreen],
+        },
+        lastUpdated: new Date().toISOString(),
+      };
+    });
+  };
+
+  const handleUpdateStitchScreen = (
+    screenId: string,
+    patch: Partial<StitchScreenPrompt>
+  ) => {
+    onUpdate((prev) => {
+      const currentStitch = prev.stitchUi ?? DEFAULT_STITCH_UI;
+      return {
+        ...prev,
+        stitchUi: {
+          ...currentStitch,
+          screens: (currentStitch.screens ?? []).map((item) =>
+            item.id === screenId ? { ...item, ...patch } : item
+          ),
+        },
+        lastUpdated: new Date().toISOString(),
+      };
+    });
+  };
+
+  const handleRemoveStitchScreen = (screenId: string) => {
+    onUpdate((prev) => {
+      const currentStitch = prev.stitchUi ?? DEFAULT_STITCH_UI;
+      return {
+        ...prev,
+        stitchUi: {
+          ...currentStitch,
+          screens: (currentStitch.screens ?? []).filter((item) => item.id !== screenId),
+        },
+        lastUpdated: new Date().toISOString(),
+      };
+    });
+  };
+
+  const handleFillStitchScreen = async (screen: StitchScreenPrompt) => {
+    setFillingScreenId(screen.id);
+    try {
+      const res = await onFillField('stitchScreenNotes', {
+        currentValue: `${screen.name} (${screen.kind}): ${screen.notes}`,
+      });
+      if (res?.value) {
+        handleUpdateStitchScreen(screen.id, { notes: res.value });
+      }
+    } finally {
+      setFillingScreenId(null);
+    }
+  };
+
+  const handleAddAgentLane = () => {
+    const newLane: AgentLane = {
+      id: generateSafeId('lane'),
+      agentName: `Agent ${multiAgent.lanes.length + 1} (Specialist)`,
+      focusArea: 'Feature Implementation',
+      status: 'ready',
+      workOnPaths: 'src/features/',
+      stayAwayPaths: 'src-tauri/, package.json',
+      handoffNote: 'Post status update in COLLABORATION.md before finishing.',
+    };
+    onUpdate((prev) => {
+      const current = prev.multiAgent ?? DEFAULT_MULTI_AGENT;
+      return {
+        ...prev,
+        multiAgent: {
+          ...current,
+          enabled: true,
+          lanes: [...current.lanes, newLane],
+        },
+        lastUpdated: new Date().toISOString(),
+      };
+    });
+  };
+
+  const handleUpdateAgentLane = (laneId: string, patch: Partial<AgentLane>) => {
+    onUpdate((prev) => {
+      const current = prev.multiAgent ?? DEFAULT_MULTI_AGENT;
+      return {
+        ...prev,
+        multiAgent: {
+          ...current,
+          lanes: current.lanes.map((lane) =>
+            lane.id === laneId ? { ...lane, ...patch } : lane
+          ),
+        },
+        lastUpdated: new Date().toISOString(),
+      };
+    });
+  };
+
+  const handleRemoveAgentLane = (laneId: string) => {
+    onUpdate((prev) => {
+      const current = prev.multiAgent ?? DEFAULT_MULTI_AGENT;
+      return {
+        ...prev,
+        multiAgent: {
+          ...current,
+          lanes: current.lanes.filter((lane) => lane.id !== laneId),
         },
         lastUpdated: new Date().toISOString(),
       };
@@ -273,12 +422,16 @@ export function WorkflowDeck({
     { filename: 'spec.md', content: compileSpecMd(state) },
     { filename: 'plan.md', content: compilePlanMd(state) },
     { filename: 'tasks.md', content: compileTasksMd(state) },
+    ...(multiAgent.enabled
+      ? [{ filename: 'COLLABORATION.md', content: compileCollaborationMd(state) }]
+      : []),
+    ...(localAgents.enabled
+      ? [{ filename: '.continuerules', content: compileContinueRules(state) }]
+      : []),
   ];
 
   const anyBusy =
-    Boolean(fillingField) ||
-    miniGrillLoadingTopic === 'stitchUi' ||
-    isGeneratingSurprise;
+    miniGrillLoadingTopic === 'stitchUi' || isGeneratingSurprise;
 
   return (
     <DeckCard
@@ -445,8 +598,12 @@ export function WorkflowDeck({
               <FillWithAiButton
                 fieldLabel="Visual Direction"
                 loading={fillingField === 'stitchVisualDirection'}
-                disabled={anyBusy && fillingField !== 'stitchVisualDirection'}
-                onClick={() => void onFillField('stitchVisualDirection')}
+                disabled={fillingField === 'stitchVisualDirection'}
+                onClick={() =>
+                  void onFillField('stitchVisualDirection', {
+                    currentValue: stitchUi.visualDirection,
+                  })
+                }
               />
             </div>
             <textarea
@@ -469,11 +626,11 @@ export function WorkflowDeck({
           </div>
 
           {/* Step 1A: Copy & Run in Google Stitch */}
-          <div className="space-y-2">
+          <div className="space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-white">
                 <Sparkles className="w-3.5 h-3.5 text-[#EC4899]" />
-                <span>Step 1A · Paste this UI Design Prompt into Google Stitch</span>
+                <span>Step 1A · Paste Master UI Design Prompt into Google Stitch</span>
                 <HelpBadge tooltipKey="platform-stitch" />
               </span>
               <a
@@ -493,6 +650,109 @@ export function WorkflowDeck({
               templateVariables={state.proConfig.templateVariables}
               onUpdateVariable={onUpdateVariable}
             />
+
+            {/* Individual Unlimited Stitch Screen / Menu / Modal Prompts */}
+            <div className="p-3.5 rounded-xl bg-[#141122]/80 border border-[#C084FC]/25 space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <LayoutGrid className="w-4 h-4 text-[#A78BFA]" />
+                  <span className="text-xs font-semibold text-white">
+                    Per-Screen & Menu Stitch Prompts ({stitchScreens.length})
+                  </span>
+                  <HelpBadge tooltipKey="stitch-multi-screen" />
+                </div>
+                <button
+                  type="button"
+                  onClick={handleAddStitchScreen}
+                  className="pf-btn-secondary inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5 text-[#EC4899]" />
+                  <span>Add Screen / Menu / Modal</span>
+                </button>
+              </div>
+
+              {stitchScreens.length === 0 ? (
+                <p className="text-xs text-[#CBC3D7]">
+                  Add separate Stitch prompts for each screen, sidebar menu, dialog, or dashboard widget you want Stitch to generate individually.
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {stitchScreens.map((screen, idx) => (
+                    <div
+                      key={screen.id}
+                      className="p-3 rounded-xl bg-[#0B0D12]/90 border border-[#1D2230] space-y-2.5"
+                    >
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-[11px] font-mono text-[#A78BFA] tabular-nums">
+                          #{idx + 1}
+                        </span>
+                        <input
+                          type="text"
+                          value={screen.name}
+                          onChange={(e) =>
+                            handleUpdateStitchScreen(screen.id, { name: e.target.value })
+                          }
+                          placeholder="e.g., Settings Drawer, Command Menu, Dashboard"
+                          className="flex-1 min-w-[160px] px-2.5 py-1.5 rounded-lg bg-[#141122] border border-[#C084FC]/25 text-xs font-medium text-white focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]"
+                        />
+                        <select
+                          value={screen.kind}
+                          onChange={(e) =>
+                            handleUpdateStitchScreen(screen.id, {
+                              kind: e.target.value as StitchScreenPrompt['kind'],
+                            })
+                          }
+                          aria-label={`Surface type for ${screen.name}`}
+                          className="px-2.5 py-1.5 rounded-lg bg-[#141122] border border-[#C084FC]/25 text-xs text-[#E9D5FF] focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]"
+                        >
+                          <option value="screen">Screen</option>
+                          <option value="menu">Menu / Nav</option>
+                          <option value="modal">Modal / Dialog</option>
+                          <option value="component">Component</option>
+                        </select>
+                        <FillWithAiButton
+                          fieldLabel={`${screen.name} Notes`}
+                          loading={fillingScreenId === screen.id}
+                          disabled={fillingScreenId === screen.id}
+                          onClick={() => void handleFillStitchScreen(screen)}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveStitchScreen(screen.id)}
+                          aria-label={`Remove ${screen.name}`}
+                          className="p-1.5 rounded-lg text-[#958EA0] hover:text-[#FFB4AB] hover:bg-[#EF4444]/15 transition-colors cursor-pointer"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+
+                      <textarea
+                        rows={2}
+                        value={screen.notes}
+                        onChange={(e) =>
+                          handleUpdateStitchScreen(screen.id, { notes: e.target.value })
+                        }
+                        placeholder="Layout details, controls, states, or click Fill with AI..."
+                        className="w-full p-2.5 rounded-lg bg-[#141122] border border-[#C084FC]/20 text-xs text-[#E9D5FF] placeholder-[#958EA0]/60 focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]"
+                      />
+
+                      <CodeViewer
+                        filename={`stitch-${screen.kind}-${
+                          screen.name
+                            .toLowerCase()
+                            .replace(/[^a-z0-9]+/g, '-')
+                            .replace(/^-|-$/g, '') || idx + 1
+                        }.txt`}
+                        badgeLabel={`${screen.kind.toUpperCase()} Prompt`}
+                        content={compileStitchScreenPrompt(state, screen)}
+                        templateVariables={state.proConfig.templateVariables}
+                        onUpdateVariable={onUpdateVariable}
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Step 1B: Upload Stitch Result */}
@@ -569,8 +829,12 @@ export function WorkflowDeck({
                 <FillWithAiButton
                   fieldLabel="Handoff Notes"
                   loading={fillingField === 'uploadedResultNotes'}
-                  disabled={anyBusy && fillingField !== 'uploadedResultNotes'}
-                  onClick={() => void onFillField('uploadedResultNotes')}
+                  disabled={fillingField === 'uploadedResultNotes'}
+                  onClick={() =>
+                    void onFillField('uploadedResultNotes', {
+                      currentValue: stitchUi.uploadedResultNotes ?? '',
+                    })
+                  }
                 />
               </div>
               <textarea
@@ -662,7 +926,7 @@ export function WorkflowDeck({
                 className="pf-btn-primary inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold cursor-pointer"
               >
                 <FolderOutput className="w-3.5 h-3.5" />
-                <span>Save All 4 .md Files to Computer</span>
+                <span>Save All {mdFiles.length} Spec Files to Computer</span>
               </button>
             </div>
 
@@ -742,6 +1006,376 @@ export function WorkflowDeck({
             templateVariables={state.proConfig.templateVariables}
             onUpdateVariable={onUpdateVariable}
           />
+        </div>
+
+        {/* Optional Add-Ons: Local AI Agents (Ollama / Continue) & Multi-Agent Collaboration */}
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+          {/* Local AI Agents Card */}
+          <div className="p-4 sm:p-5 rounded-2xl bg-[#0F0C1B]/90 border border-[#C084FC]/25 space-y-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <Cpu className="w-4 h-4 text-[#34D399]" />
+                  <h3 className="text-sm font-bold text-white">
+                    Optional · Local AI Agents (Ollama / Continue)
+                  </h3>
+                  <HelpBadge tooltipKey="section-local-agents" />
+                </div>
+                <p className="text-xs text-[#CBC3D7]">
+                  Include offline-first `.continuerules` and Ollama launch commands in your exported repo.
+                </p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={localAgents.enabled}
+                onClick={() =>
+                  onUpdate((prev) => ({
+                    ...prev,
+                    localAgents: {
+                      ...(prev.localAgents ?? DEFAULT_LOCAL_AGENTS),
+                      enabled: !(prev.localAgents ?? DEFAULT_LOCAL_AGENTS).enabled,
+                    },
+                    lastUpdated: new Date().toISOString(),
+                  }))
+                }
+                className={`px-3 py-1 rounded-full text-xs font-semibold border transition-colors cursor-pointer shrink-0 ${
+                  localAgents.enabled
+                    ? 'bg-[#34D399]/20 border-[#34D399]/50 text-[#34D399]'
+                    : 'bg-[#141122] border-[#C084FC]/25 text-[#958EA0]'
+                }`}
+              >
+                {localAgents.enabled ? 'Enabled' : 'Enable'}
+              </button>
+            </div>
+
+            {localAgents.enabled && (
+              <div className="space-y-3 pt-1">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div className="space-y-1">
+                    <label
+                      htmlFor="select-local-agent-provider"
+                      className="text-[11px] font-medium text-[#CBC3D7]"
+                    >
+                      Local Tooling
+                    </label>
+                    <select
+                      id="select-local-agent-provider"
+                      value={localAgents.provider}
+                      onChange={(e) =>
+                        onUpdate((prev) => ({
+                          ...prev,
+                          localAgents: {
+                            ...(prev.localAgents ?? DEFAULT_LOCAL_AGENTS),
+                            provider: e.target.value as 'ollama' | 'continue' | 'both',
+                          },
+                          lastUpdated: new Date().toISOString(),
+                        }))
+                      }
+                      className="w-full px-3 py-2 rounded-lg bg-[#141122] border border-[#C084FC]/25 text-xs text-white focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]"
+                    >
+                      <option value="both">Ollama + Continue (.continuerules)</option>
+                      <option value="ollama">Ollama CLI Only</option>
+                      <option value="continue">Continue IDE Extension Only</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label
+                      htmlFor="select-ollama-model"
+                      className="text-[11px] font-medium text-[#CBC3D7]"
+                    >
+                      Recommended Local Model
+                    </label>
+                    <select
+                      id="select-ollama-model"
+                      value={
+                        OLLAMA_MODEL_PRESETS.includes(localAgents.ollamaModel)
+                          ? localAgents.ollamaModel
+                          : 'custom'
+                      }
+                      onChange={(e) => {
+                        if (e.target.value !== 'custom') {
+                          onUpdate((prev) => ({
+                            ...prev,
+                            localAgents: {
+                              ...(prev.localAgents ?? DEFAULT_LOCAL_AGENTS),
+                              ollamaModel: e.target.value,
+                            },
+                            lastUpdated: new Date().toISOString(),
+                          }));
+                        }
+                      }}
+                      className="w-full px-3 py-2 rounded-lg bg-[#141122] border border-[#C084FC]/25 text-xs text-white focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]"
+                    >
+                      {OLLAMA_MODEL_PRESETS.map((preset) => (
+                        <option key={preset} value={preset}>
+                          {preset}
+                        </option>
+                      ))}
+                      <option value="custom">Custom Ollama Tag</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <input
+                    type="text"
+                    value={localAgents.ollamaModel}
+                    onChange={(e) =>
+                      onUpdate((prev) => ({
+                        ...prev,
+                        localAgents: {
+                          ...(prev.localAgents ?? DEFAULT_LOCAL_AGENTS),
+                          ollamaModel: e.target.value,
+                        },
+                        lastUpdated: new Date().toISOString(),
+                      }))
+                    }
+                    placeholder="qwen2.5-coder:14b"
+                    aria-label="Ollama model name"
+                    className="px-3 py-2 rounded-lg bg-[#141122] border border-[#C084FC]/25 text-xs font-mono text-white focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]"
+                  />
+                  <input
+                    type="text"
+                    value={localAgents.ollamaEndpoint}
+                    onChange={(e) =>
+                      onUpdate((prev) => ({
+                        ...prev,
+                        localAgents: {
+                          ...(prev.localAgents ?? DEFAULT_LOCAL_AGENTS),
+                          ollamaEndpoint: e.target.value,
+                        },
+                        lastUpdated: new Date().toISOString(),
+                      }))
+                    }
+                    placeholder="http://localhost:11434"
+                    aria-label="Ollama API endpoint"
+                    className="px-3 py-2 rounded-lg bg-[#141122] border border-[#C084FC]/25 text-xs font-mono text-white focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[11px] font-medium text-[#CBC3D7]">
+                      Local Agent Guardrails (.continuerules)
+                    </span>
+                    <FillWithAiButton
+                      fieldLabel="Local Agent Guardrails"
+                      loading={fillingField === 'localAgentNotes'}
+                      disabled={fillingField === 'localAgentNotes'}
+                      onClick={() =>
+                        void onFillField('localAgentNotes', {
+                          currentValue: localAgents.notes,
+                        })
+                      }
+                    />
+                  </div>
+                  <textarea
+                    rows={2}
+                    value={localAgents.notes}
+                    onChange={(e) =>
+                      onUpdate((prev) => ({
+                        ...prev,
+                        localAgents: {
+                          ...(prev.localAgents ?? DEFAULT_LOCAL_AGENTS),
+                          notes: e.target.value,
+                        },
+                        lastUpdated: new Date().toISOString(),
+                      }))
+                    }
+                    className="w-full p-2.5 rounded-lg bg-[#141122] border border-[#C084FC]/20 text-xs text-[#E9D5FF] focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]"
+                  />
+                </div>
+
+                <CodeViewer
+                  filename=".continuerules"
+                  badgeLabel={`Ollama: ${localAgents.ollamaModel}`}
+                  content={compileContinueRules(state)}
+                  templateVariables={state.proConfig.templateVariables}
+                  onUpdateVariable={onUpdateVariable}
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Multi-Agent Collaboration Card */}
+          <div className="p-4 sm:p-5 rounded-2xl bg-[#0F0C1B]/90 border border-[#C084FC]/25 space-y-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <Users className="w-4 h-4 text-[#EC4899]" />
+                  <h3 className="text-sm font-bold text-white">
+                    Optional · Multi-Agent Coordination (COLLABORATION.md)
+                  </h3>
+                  <HelpBadge tooltipKey="section-multi-agent" />
+                </div>
+                <p className="text-xs text-[#CBC3D7]">
+                  Give parallel AI agents explicit Work-On vs. Stay-Away-From path boundaries and handoff notes.
+                </p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={multiAgent.enabled}
+                onClick={() =>
+                  onUpdate((prev) => ({
+                    ...prev,
+                    multiAgent: {
+                      ...(prev.multiAgent ?? DEFAULT_MULTI_AGENT),
+                      enabled: !(prev.multiAgent ?? DEFAULT_MULTI_AGENT).enabled,
+                    },
+                    lastUpdated: new Date().toISOString(),
+                  }))
+                }
+                className={`px-3 py-1 rounded-full text-xs font-semibold border transition-colors cursor-pointer shrink-0 ${
+                  multiAgent.enabled
+                    ? 'bg-[#EC4899]/20 border-[#EC4899]/50 text-[#F9A8D4]'
+                    : 'bg-[#141122] border-[#C084FC]/25 text-[#958EA0]'
+                }`}
+              >
+                {multiAgent.enabled ? 'Enabled' : 'Enable'}
+              </button>
+            </div>
+
+            {multiAgent.enabled && (
+              <div className="space-y-3 pt-1">
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[11px] font-medium text-[#CBC3D7]">
+                      Shared Coordination Protocol
+                    </span>
+                    <FillWithAiButton
+                      fieldLabel="Multi-Agent Protocol"
+                      loading={fillingField === 'multiAgentProtocol'}
+                      disabled={fillingField === 'multiAgentProtocol'}
+                      onClick={() =>
+                        void onFillField('multiAgentProtocol', {
+                          currentValue: multiAgent.sharedProtocolNotes,
+                        })
+                      }
+                    />
+                  </div>
+                  <textarea
+                    rows={2}
+                    value={multiAgent.sharedProtocolNotes}
+                    onChange={(e) =>
+                      onUpdate((prev) => ({
+                        ...prev,
+                        multiAgent: {
+                          ...(prev.multiAgent ?? DEFAULT_MULTI_AGENT),
+                          sharedProtocolNotes: e.target.value,
+                        },
+                        lastUpdated: new Date().toISOString(),
+                      }))
+                    }
+                    className="w-full p-2.5 rounded-lg bg-[#141122] border border-[#C084FC]/20 text-xs text-[#E9D5FF] focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-semibold text-white">
+                      Agent Ownership Lanes ({multiAgent.lanes.length})
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleAddAgentLane}
+                      className="pf-btn-secondary inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium cursor-pointer"
+                    >
+                      <Plus className="w-3 h-3 text-[#EC4899]" />
+                      <span>Add Agent Lane</span>
+                    </button>
+                  </div>
+
+                  <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+                    {multiAgent.lanes.map((lane) => (
+                      <div
+                        key={lane.id}
+                        className="p-2.5 rounded-xl bg-[#131620] border border-[#1D2230] space-y-2"
+                      >
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            value={lane.agentName}
+                            onChange={(e) =>
+                              handleUpdateAgentLane(lane.id, { agentName: e.target.value })
+                            }
+                            placeholder="Agent Name"
+                            className="flex-1 min-w-0 px-2.5 py-1 rounded-md bg-[#0B0D12] border border-[#C084FC]/20 text-xs font-medium text-white focus:outline-none focus:ring-1 focus:ring-[#8B5CF6]"
+                          />
+                          <select
+                            value={lane.status}
+                            onChange={(e) =>
+                              handleUpdateAgentLane(lane.id, {
+                                status: e.target.value as AgentLane['status'],
+                              })
+                            }
+                            aria-label={`Status for ${lane.agentName}`}
+                            className="px-2 py-1 rounded-md bg-[#0B0D12] border border-[#C084FC]/20 text-[11px] text-[#E9D5FF]"
+                          >
+                            <option value="ready">Ready</option>
+                            <option value="in-progress">In Progress</option>
+                            <option value="done">Done</option>
+                          </select>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveAgentLane(lane.id)}
+                            aria-label={`Remove ${lane.agentName}`}
+                            className="p-1 text-[#958EA0] hover:text-[#FFB4AB] cursor-pointer"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                          <input
+                            type="text"
+                            value={lane.workOnPaths}
+                            onChange={(e) =>
+                              handleUpdateAgentLane(lane.id, { workOnPaths: e.target.value })
+                            }
+                            placeholder="Work on: src/decks/..."
+                            aria-label={`Work on paths for ${lane.agentName}`}
+                            className="px-2 py-1 rounded-md bg-[#0B0D12] border border-[#34D399]/30 text-[11px] font-mono text-[#34D399]"
+                          />
+                          <input
+                            type="text"
+                            value={lane.stayAwayPaths}
+                            onChange={(e) =>
+                              handleUpdateAgentLane(lane.id, { stayAwayPaths: e.target.value })
+                            }
+                            placeholder="Stay away: src-tauri/, ..."
+                            aria-label={`Stay away paths for ${lane.agentName}`}
+                            className="px-2 py-1 rounded-md bg-[#0B0D12] border border-[#EF4444]/30 text-[11px] font-mono text-[#FDA4AF]"
+                          />
+                        </div>
+
+                        <input
+                          type="text"
+                          value={lane.handoffNote}
+                          onChange={(e) =>
+                            handleUpdateAgentLane(lane.id, { handoffNote: e.target.value })
+                          }
+                          placeholder="Handoff / blocker note for peer agents..."
+                          aria-label={`Handoff note for ${lane.agentName}`}
+                          className="w-full px-2 py-1 rounded-md bg-[#0B0D12] border border-[#1D2230] text-[11px] text-[#CBC3D7]"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <CodeViewer
+                  filename="COLLABORATION.md"
+                  badgeLabel="Shared Multi-Agent Board"
+                  content={compileCollaborationMd(state)}
+                  templateVariables={state.proConfig.templateVariables}
+                  onUpdateVariable={onUpdateVariable}
+                />
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </DeckCard>

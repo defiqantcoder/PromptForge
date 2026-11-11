@@ -33,7 +33,10 @@ interface ManifestDeckProps {
   onUpdate: (updater: (prev: ProjectState) => ProjectState) => void;
   onFleshOutIdea: () => Promise<void>;
   onRandomAiIdea: () => Promise<void>;
-  onFillField: (field: FillableFieldId) => Promise<FillFieldResponse | null>;
+  onFillField: (
+    field: FillableFieldId,
+    options?: { currentValue?: string }
+  ) => Promise<FillFieldResponse | null>;
   fillingField: FillableFieldId | null;
   isExpanding: boolean;
   isGeneratingRandom: boolean;
@@ -119,7 +122,7 @@ export function ManifestDeck({
   };
 
   const handleFillNextStep = async () => {
-    const res = await onFillField('nextStep');
+    const res = await onFillField('nextStep', { currentValue: newStepText });
     if (res?.value) {
       setNewStepText(res.value);
     }
@@ -283,8 +286,8 @@ export function ManifestDeck({
               <FillWithAiButton
                 fieldLabel="App Name"
                 loading={fillingField === 'appName'}
-                disabled={anyAiBusy && fillingField !== 'appName'}
-                onClick={() => void onFillField('appName')}
+                disabled={fillingField === 'appName'}
+                onClick={() => void onFillField('appName', { currentValue: state.appName })}
               />
             </div>
           </div>
@@ -313,8 +316,8 @@ export function ManifestDeck({
               <FillWithAiButton
                 fieldLabel="One-Sentence Summary"
                 loading={fillingField === 'tagline'}
-                disabled={anyAiBusy && fillingField !== 'tagline'}
-                onClick={() => void onFillField('tagline')}
+                disabled={fillingField === 'tagline'}
+                onClick={() => void onFillField('tagline', { currentValue: state.tagline })}
               />
             </div>
           </div>
@@ -342,8 +345,8 @@ export function ManifestDeck({
               <FillWithAiButton
                 fieldLabel="Big Idea"
                 loading={fillingField === 'coreIdea'}
-                disabled={anyAiBusy && fillingField !== 'coreIdea'}
-                onClick={() => void onFillField('coreIdea')}
+                disabled={fillingField === 'coreIdea'}
+                onClick={() => void onFillField('coreIdea', { currentValue: state.coreIdea })}
               />
             </div>
           </div>
@@ -485,7 +488,7 @@ export function ManifestDeck({
               <FillWithAiButton
                 fieldLabel="Next Feature"
                 loading={fillingField === 'nextStep'}
-                disabled={anyAiBusy && fillingField !== 'nextStep'}
+                disabled={fillingField === 'nextStep'}
                 onClick={() => void handleFillNextStep()}
               />
               <button
@@ -652,8 +655,12 @@ export function ManifestDeck({
               <FillWithAiButton
                 fieldLabel="Language Preferences"
                 loading={fillingField === 'codingLanguageNote'}
-                disabled={anyAiBusy && fillingField !== 'codingLanguageNote'}
-                onClick={() => void onFillField('codingLanguageNote')}
+                disabled={fillingField === 'codingLanguageNote'}
+                onClick={() =>
+                  void onFillField('codingLanguageNote', {
+                    currentValue: state.codingLanguageNote,
+                  })
+                }
               />
             </div>
             <input
