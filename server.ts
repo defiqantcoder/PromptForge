@@ -5,7 +5,8 @@ import path from 'path';
 import dotenv from 'dotenv';
 import { GoogleGenAI, Type, type GenerateContentParameters } from '@google/genai';
 import { fileURLToPath } from 'url';
-import { registerArchiveRoutes } from "./server/archiveRoute.ts";
+import { registerSpecValidateRoute } from './server/specValidateRoute.js';
+import { registerArchiveRoutes } from './server/archiveRoute.ts';
 
 dotenv.config();
 
@@ -126,13 +127,14 @@ export async function createApp() {
   const rateLimiter = createRateLimiter({
     windowMs: 60000,
     maxRequests: 1000,
-    skip: (req) => process.env.NODE_ENV === 'test'
+    skip: () => process.env.NODE_ENV === 'test'
   });
 
   app.use('/api', securityHeadersMiddleware);
   app.use('/api', rateLimiter);
   app.use('/api', localOriginGuard);
   registerArchiveRoutes(app);
+  registerSpecValidateRoute(app);
 
   const requireGeminiKey = (_req: express.Request, res: express.Response, next: express.NextFunction) => {
     if (!isGeminiConfigured()) {
