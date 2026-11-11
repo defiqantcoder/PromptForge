@@ -2,7 +2,8 @@ import express from 'express';
 import { createServer as createViteServer } from 'vite';
 import path from 'path';
 import dotenv from 'dotenv';
-import { GoogleGenAI, Type } from '@google/genai';
+import { GoogleGenAI, Type, type GenerateContentParameters } from '@google/genai';
+import { fileURLToPath } from 'url';
 
 dotenv.config();
 
@@ -19,35 +20,71 @@ function getAiClient(): GoogleGenAI {
   });
 }
 
-async function startServer() {
+function isGeminiConfigured(): boolean {
+  const key = process.env.GEMINI_API_KEY?.trim();
+  return Boolean(key && key !== 'MY_GEMINI_API_KEY' && key.length > 5);
+}
+
+class GeminiTimeoutError extends Error {}
+
+async function generateContentWithTimeout(ai: GoogleGenAI, params: GenerateContentParameters) {
+  const controller = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      ai.models.generateContent({
+        ...params,
+        config: { ...params.config, abortSignal: controller.signal },
+      }),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => {
+          reject(new GeminiTimeoutError());
+          controller.abort();
+        }, 30000);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+export async function createApp() {
   const app = express();
   app.use(express.json({ limit: '2mb' }));
 
+
+  const requireGeminiKey = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+    if (!isGeminiConfigured()) {
+      res.status(503).json({ error: 'PromptForge needs a valid Gemini API Key to work. Please set it in your environment variables.' });
+      return;
+    }
+    next();
+  };
+
   // Health & API Key readiness endpoint
   app.get('/api/health', (_req, res) => {
-    const hasKey = Boolean(
-      process.env.GEMINI_API_KEY &&
-        process.env.GEMINI_API_KEY !== 'MY_GEMINI_API_KEY' &&
-        process.env.GEMINI_API_KEY.trim().length > 5
-    );
     res.json({
       status: 'ok',
-      geminiConfigured: hasKey,
+      geminiConfigured: isGeminiConfigured(),
       model: 'gemini-3.8-flash',
     });
   });
 
   // 1. Expand / Flesh Out Idea endpoint
-  app.post('/api/gemini/expand', async (req, res) => {
+  app.post('/api/gemini/expand', requireGeminiKey, async (req, res) => {
     try {
       const { appName, coreIdea, targetPlatform, features } = req.body || {};
       if (!coreIdea || typeof coreIdea !== 'string') {
         res.status(400).json({ error: 'Please enter at least a rough phrase or sentence for your app idea first.' });
         return;
       }
+      if (features !== undefined && (!Array.isArray(features) || !features.every(f => typeof f === 'string'))) {
+        res.status(400).json({ error: 'Invalid features payload.' });
+        return;
+      }
 
       const ai = getAiClient();
-      const response = await ai.models.generateContent({
+      const response = await generateContentWithTimeout(ai, {
         model: 'gemini-3.8-flash',
         contents: `You are PromptForge, a friendly product architect that translates rough, plain-English app thoughts into clear, jargon-free specifications.
 
@@ -92,22 +129,35 @@ Expand this rough idea into:
       });
 
       const rawText = (response.text ?? '{}').trim();
-      const parsed = JSON.parse(rawText);
+      let parsed;
+      try {
+        parsed = JSON.parse(rawText);
+      } catch (e) {
+        res.status(502).json({ error: 'Received an invalid response from the AI. Your existing text has been safely preserved.' });
+        return;
+      }
       res.json(parsed);
-    } catch (error: any) {
-      console.error('Gemini expand error:', error);
+    } catch (error: unknown) {
+      if (error instanceof GeminiTimeoutError) {
+        res.status(504).json({ error: 'Gemini took too long. Your existing text has been safely preserved.' });
+        return;
+      }
+      console.error('Gemini request failed', { category: 'generation_failure' });
       res.status(500).json({
         error:
-          error?.message ||
           'Could not reach Gemini AI to flesh out your idea. Your existing text has been safely preserved.',
       });
     }
   });
 
   // 2. Generate a Random App Idea with AI
-  app.post('/api/gemini/random-idea', async (req, res) => {
+  app.post('/api/gemini/random-idea', requireGeminiKey, async (req, res) => {
     try {
       const { categoryHint } = req.body || {};
+      if (categoryHint !== undefined && typeof categoryHint !== 'string') {
+        res.status(400).json({ error: 'Invalid category hint.' });
+        return;
+      }
       const seedCategories = [
         'a local-first Ubuntu creative audio or visual utility',
         'a smart personal productivity or focus ritual workstation',
@@ -119,7 +169,7 @@ Expand this rough idea into:
         categoryHint || seedCategories[Math.floor(Math.random() * seedCategories.length)];
 
       const ai = getAiClient();
-      const response = await ai.models.generateContent({
+      const response = await generateContentWithTimeout(ai, {
         model: 'gemini-3.8-flash',
         contents: `Invent an original, practical, and inspiring application idea around the theme: "${chosenTheme}".
 Make it concrete, distinctive, and immediately understandable by a non-technical builder.
@@ -194,29 +244,50 @@ Include:
       });
 
       const rawText = (response.text ?? '{}').trim();
-      const parsed = JSON.parse(rawText);
+      let parsed;
+      try {
+        parsed = JSON.parse(rawText);
+      } catch (e) {
+        res.status(502).json({ error: 'Received an invalid response from the AI. Your existing text has been safely preserved.' });
+        return;
+      }
       res.json(parsed);
-    } catch (error: any) {
-      console.error('Gemini random-idea error:', error);
+    } catch (error: unknown) {
+      if (error instanceof GeminiTimeoutError) {
+        res.status(504).json({ error: 'Gemini took too long. Your existing text has been safely preserved.' });
+        return;
+      }
+      console.error('Gemini request failed', { category: 'generation_failure' });
       res.status(500).json({
         error:
-          error?.message ||
           'Could not generate a random AI idea right now. Try again or pick a starter template.',
       });
     }
   });
 
   // 3. Socratic Interrogator ("Grill Me" 3-Question Interview)
-  app.post('/api/gemini/grill', async (req, res) => {
+  app.post('/api/gemini/grill', requireGeminiKey, async (req, res) => {
     try {
       const { appName, coreIdea, targetPlatform, features, groundRules } = req.body || {};
       if (!coreIdea || typeof coreIdea !== 'string') {
         res.status(400).json({ error: 'Please describe your app idea first so PromptForge knows what to ask.' });
         return;
       }
+      if (appName !== undefined && typeof appName !== 'string') {
+        res.status(400).json({ error: 'Invalid app name.' });
+        return;
+      }
+      if (targetPlatform !== undefined && typeof targetPlatform !== 'string') {
+        res.status(400).json({ error: 'Invalid target platform.' });
+        return;
+      }
+      if (features !== undefined && (!Array.isArray(features) || !features.every(f => typeof f === 'string'))) {
+        res.status(400).json({ error: 'Invalid features payload.' });
+        return;
+      }
 
       const ai = getAiClient();
-      const response = await ai.models.generateContent({
+      const response = await generateContentWithTimeout(ai, {
         model: 'gemini-3.8-flash',
         contents: `Analyze this application specification and generate 3 sharp, friendly multiple-choice clarification questions ("Grill Me") that uncover missing product details, edge cases, or user experience choices.
 
@@ -265,13 +336,22 @@ Rules for the 3 questions:
       });
 
       const rawText = (response.text ?? '{}').trim();
-      const parsed = JSON.parse(rawText);
+      let parsed;
+      try {
+        parsed = JSON.parse(rawText);
+      } catch (e) {
+        res.status(502).json({ error: 'Received an invalid response from the AI. Your existing text has been safely preserved.' });
+        return;
+      }
       res.json(parsed);
-    } catch (error: any) {
-      console.error('Gemini grill error:', error);
+    } catch (error: unknown) {
+      if (error instanceof GeminiTimeoutError) {
+        res.status(504).json({ error: 'Gemini took too long. Your existing text has been safely preserved.' });
+        return;
+      }
+      console.error('Gemini request failed', { category: 'generation_failure' });
       res.status(500).json({
         error:
-          error?.message ||
           'Gemini took too long or encountered an error while generating interview questions. Your current progress is safe.',
       });
     }
@@ -291,9 +371,17 @@ Rules for the 3 questions:
     });
   }
 
+  return app;
+}
+
+
+async function startServer() {
+  const app = await createApp();
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`PromptForge Workstation server running on http://0.0.0.0:${PORT}`);
   });
 }
 
-startServer();
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  startServer();
+}
