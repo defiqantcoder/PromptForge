@@ -1,6 +1,7 @@
 import { securityHeadersMiddleware, createRateLimiter, localOriginGuard } from './server/security.js';
 import express from 'express';
 import { createServer as createViteServer } from 'vite';
+import fs from 'node:fs';
 import path from 'path';
 import crypto from 'node:crypto';
 import dotenv from 'dotenv';
@@ -824,9 +825,17 @@ Return summary, tradeoffs, and 4 practical comparisons explaining what each lang
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), 'dist');
+    const indexHtmlPath = path.join(distPath, 'index.html');
+    const cachedIndexHtml = fs.existsSync(indexHtmlPath)
+      ? fs.readFileSync(indexHtmlPath, 'utf-8')
+      : null;
     app.use(express.static(distPath));
     app.get('*', rateLimiter, (_req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
+      if (!cachedIndexHtml) {
+        res.status(404).send('Not found');
+        return;
+      }
+      res.type('html').send(cachedIndexHtml);
     });
   }
 
