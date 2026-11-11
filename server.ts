@@ -9,6 +9,9 @@ dotenv.config();
 
 const PORT = 3000;
 
+/**
+ * Initializes and returns a GoogleGenAI client instance with the configured API key.
+ */
 function getAiClient(): GoogleGenAI {
   return new GoogleGenAI({
     apiKey: process.env.GEMINI_API_KEY,
@@ -20,6 +23,9 @@ function getAiClient(): GoogleGenAI {
   });
 }
 
+/**
+ * Checks if the Gemini API key is configured and valid.
+ */
 function isGeminiConfigured(): boolean {
   const key = process.env.GEMINI_API_KEY?.trim();
   return Boolean(key && key !== 'MY_GEMINI_API_KEY' && key.length > 5);
@@ -27,6 +33,11 @@ function isGeminiConfigured(): boolean {
 
 class GeminiTimeoutError extends Error {}
 
+/**
+ * Generates content using the Gemini AI with a 30-second timeout.
+ * @param ai The GoogleGenAI instance.
+ * @param params The parameters for content generation.
+ */
 async function generateContentWithTimeout(ai: GoogleGenAI, params: GenerateContentParameters) {
   const controller = new AbortController();
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -48,10 +59,18 @@ async function generateContentWithTimeout(ai: GoogleGenAI, params: GenerateConte
   }
 }
 
+/**
+ * Validates if the given value is an optional string (undefined or string).
+ * @param value The value to check.
+ */
 function isValidOptionalString(value: unknown): boolean {
   return value === undefined || typeof value === 'string';
 }
 
+/**
+ * Validates if the given value is an optional array of strings.
+ * @param value The value to check.
+ */
 function isValidOptionalFeatures(value: unknown): boolean {
   return (
     value === undefined ||
@@ -64,6 +83,11 @@ interface ImageInput {
   dataUrl?: string;
 }
 
+/**
+ * Builds the contents payload for multimodal requests, including the text prompt and optional inline images.
+ * @param prompt The text prompt.
+ * @param images An optional array of ImageInput objects.
+ */
 function buildMultimodalContents(prompt: string, images?: unknown) {
   const parts: Array<Record<string, unknown>> = [{ text: prompt }];
   if (Array.isArray(images)) {
@@ -84,6 +108,12 @@ function buildMultimodalContents(prompt: string, images?: unknown) {
   return parts.length === 1 ? prompt : [{ role: 'user', parts }];
 }
 
+/**
+ * Executes a Gemini AI request and sends a JSON response to the client.
+ * @param params The parameters for content generation.
+ * @param res The Express response object.
+ * @param failureMessage The message to log and send on failure.
+ */
 async function executeGeminiJsonRoute(
   params: GenerateContentParameters,
   res: express.Response,
@@ -116,6 +146,9 @@ async function executeGeminiJsonRoute(
   }
 }
 
+/**
+ * Creates and configures the Express application.
+ */
 export async function createApp() {
   const app = express();
   app.disable('x-powered-by');
@@ -704,6 +737,9 @@ Include 4 practical language comparisons explaining clearly what each language i
   return app;
 }
 
+/**
+ * Starts the Express server.
+ */
 async function startServer() {
   const host = process.env.HOST || '127.0.0.1';
   const app = await createApp();
