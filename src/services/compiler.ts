@@ -8,14 +8,16 @@ const PLATFORM_LABELS: Record<ProjectState['targetPlatform'], string> = {
 };
 
 function interpolateVariables(text: string, vars: Record<string, string>): string {
+  if (!vars) return text;
   return text.replace(/\{\{(\w+)\}\}/g, (match, key) => {
     return vars[key] !== undefined ? vars[key] : match;
   });
 }
 
 export function compileSpecMd(state: ProjectState): string {
-  const earsRequirements = state.features.map((feat, idx) => {
-    const clean = feat.trim().replace(/\.$/, '');
+  const safeFeatures = (state.features || []).map(f => f.trim()).filter(Boolean);
+  const earsRequirements = safeFeatures.map((feat, idx) => {
+    const clean = feat.replace(/\.$/, '');
     return `- **REQ-00${idx + 1} (Feature Flow):** When the user interacts with the workspace to ${clean.charAt(0).toLowerCase() + clean.slice(1)}, the system shall complete the action with clear visual feedback and preserve active session state.`;
   });
 
@@ -34,9 +36,21 @@ export function compileSpecMd(state: ProjectState): string {
       '- **REQ-PRIVACY (Local Security Boundary):** When storing API keys or exporting specification bundles, the system shall route credentials through secure server/keyring storage and canonicalize target file paths.'
     );
   }
+  if (state.groundRules.darkModeDefault) {
+    earsRequirements.push(
+      '- **REQ-DARKMODE (Dark Theme Default):** When the system loads, the system shall render a glassmorphic twilight dark theme by default.'
+    );
+  }
+  if (state.clarifications && state.clarifications.length > 0) {
+    state.clarifications.forEach((c) => {
+      earsRequirements.push(
+        `- **REQ-CLARIFICATION-${c.id} (${c.category}):** When handling ${c.category}, the system shall enforce the confirmed decision: ${c.selectedAnswer || c.options[0]}.`
+      );
+    });
+  }
 
   const clarificationLines =
-    state.clarifications.length > 0
+    state.clarifications && state.clarifications.length > 0
       ? state.clarifications
           .map(
             (c) =>
@@ -45,27 +59,31 @@ export function compileSpecMd(state: ProjectState): string {
           .join('\n')
       : '- No Socratic clarifications recorded yet. Run "Grill Me" to lock in edge-case decisions.';
 
+  const featuresList = safeFeatures.length > 0
+    ? safeFeatures.map((f, i) => `${i + 1}. ${f}`).join('\n')
+    : '1. No features defined yet.';
+
   const raw = `# Product Specification: ${state.appName}
 
-> **Tagline:** ${state.tagline}
+> **Tagline:** ${state.tagline || 'No tagline provided'}
 > **Target Environment:** ${PLATFORM_LABELS[state.targetPlatform]}
 > **Primary AI Model:** \`{{primary_model}}\` · **Target OS:** \`{{target_os}}\`
 
 ## 1. Objective
-${state.coreIdea}
+${state.coreIdea || 'No core idea provided'}
 
 ## 2. Target Users
 - **Everyday Builders & Creators:** Users who want a fast, jargon-free experience for ${state.appName} without wrestling with complex setup steps.
 - **Power Users & Technical Practitioners:** Users who value deterministic exports, keyboard-first speed, and clear system boundaries.
 
 ## 3. Core Capabilities
-${state.features.map((f, i) => `${i + 1}. ${f}`).join('\n')}
+${featuresList}
 
 ## 4. Confirmed Clarification Decisions ("Grill Me" Outcomes)
 ${clarificationLines}
 
 ## 5. Behavioral Requirements (EARS Notation)
-${earsRequirements.join('\n')}
+${earsRequirements.length > 0 ? earsRequirements.join('\n') : '- No specific behaviors defined.'}
 - **REQ-ERROR (Graceful Recovery):** When an external AI or I/O call fails or times out after 30 seconds, the system shall surface a clear, human-readable warning banner and retain all active user text.
 `;
 
@@ -145,47 +163,54 @@ export interface ProjectState {
 }
 
 export function compileTasksMd(state: ProjectState): string {
-  const modeTag =
-    state.proConfig.taskSlicingMode === 'hitl-first'
-      ? 'HITL'
-      : state.proConfig.taskSlicingMode === 'afk-autonomous'
-      ? 'AFK'
-      : null;
+  const safeFeatures = (state.features || []).map(f => f.trim()).filter(Boolean);
 
-  const resolveTag = (defaultTag: 'HITL' | 'AFK') => modeTag || defaultTag;
+  const resolveTag = (defaultTag: 'HITL' | 'AFK', isEven: boolean) => {
+    switch (state.proConfig.taskSlicingMode) {
+      case 'hitl-first': return 'HITL';
+      case 'afk-autonomous': return 'AFK';
+      case 'balanced-slices': return isEven ? 'HITL' : 'AFK';
+      default: return defaultTag;
+    }
+  };
 
-  const featureTasks = state.features.slice(0, 4).map((feat, idx) => {
+  const featureTasks = safeFeatures.slice(0, 4).map((feat, idx) => {
     const num = String(idx + 4).padStart(3, '0');
-    const tag = resolveTag(idx % 2 === 0 ? 'HITL' : 'AFK');
+    const tag = resolveTag('HITL', idx % 2 === 0);
     const parallel = tag === 'AFK' ? ' [P]' : '';
     return `- [ ] **T${num}: Feature Slice — ${feat.slice(0, 58)}${feat.length > 58 ? '...' : ''} (${tag})${parallel}**
   - Implement UI controls, state handlers, and plain-English hover tooltip explainers for: *${feat}*.
   - Verification: Interact with the control in the live workspace and confirm state updates immediately without console errors.`;
   });
 
+  const tag001 = resolveTag('HITL', true);
+  const tag002 = resolveTag('AFK', false);
+  const tag003 = resolveTag('AFK', false);
+  const tag008 = resolveTag('HITL', true);
+
   const raw = `# Implementation Tasks: ${state.appName}
 
 > **Execution Strategy:** \`${state.proConfig.taskSlicingMode}\` · **Target OS:** \`{{target_os}}\`
 > **Legend:** \`(HITL)\` = Human-in-the-Loop checkpoint · \`(AFK)\` = Autonomous background execution · \`[P]\` = Safe to parallelize
 
-- [ ] **T001: Project Scaffolding & IPC Foundation (${resolveTag('HITL')})**
+- [ ] **T001: Project Scaffolding & IPC Foundation (${tag001})**
   - Initialize ${state.proConfig.stackSummary}.
   - Configure least-privilege permissions and typed command bridges for \`{{export_dir}}\`.
   - Verification: Run \`npx tsc --noEmit\` and confirm the application boots cleanly on port 3000 / desktop shell.
 
-- [ ] **T002: Design Tokens & Glassmorphic Surface Theme (${resolveTag('AFK')}) [P]**
+- [ ] **T002: Design Tokens & Glassmorphic Surface Theme (${tag002})${tag002 === 'AFK' ? ' [P]' : ''}**
   - Implement the night-violet palette (\`#0F0C1B\`), frosted card surfaces, and \`{{accent_color}}\` primary action styles.
   - Build reusable UI primitives: \`Card\`, \`Tooltip\`, \`ModeSwitcher\`, and \`CodeViewer\`.
   - Verification: Render workspace cards and verify 12px backdrop blur, 1px lilac borders, and tabular numerals.
 
-- [ ] **T003: Universal Hover Explainer System (${resolveTag('AFK')}) [P]**
+- [ ] **T003: Universal Hover Explainer System (${tag003})${tag003 === 'AFK' ? ' [P]' : ''}**
   - Wrap Radix UI Tooltip primitives with a 100ms hover delay and \`role="tooltip"\` accessibility semantics.
   - Connect central plain-English dictionary covering all section badges, switches, and exporters.
   - Verification: Hover over any section label and confirm the lilac-bordered explainer callout appears cleanly.
 
-${featureTasks.join('\n\n')}
+${featureTasks.length > 0 ? featureTasks.join('\n\n') : '- No feature tasks defined.'}
 
-- [ ] **T008: Contract Compiler, Multi-Platform Exporter & Native Save Modal (${resolveTag('HITL')})**
+- [ ] **T008: Contract Compiler, Multi-Platform Exporter & Native Save Modal (${tag008})**
   - Compile \`ProjectState\` into \`spec.md\`, \`plan.md\`, \`tasks.md\`, and 10-section \`AGENTS.md\`.
   - Wire the Ubuntu directory export modal with canonical path validation (\`../\` rejection) and direct file downloads.
   - Verification: Click "Save to Computer", verify file sizes, and confirm all 4 specification files export cleanly.
@@ -195,16 +220,20 @@ ${featureTasks.join('\n\n')}
 }
 
 export function compileAgentsMd(state: ProjectState): string {
-  const customRulesList =
-    state.proConfig.customRules.length > 0
-      ? state.proConfig.customRules.map((r) => `- ${r}`).join('\n')
-      : '- Keep all user-facing labels in plain, jargon-free English.';
+  const customRules = (state.proConfig.customRules || []).map(r => r.trim()).filter(Boolean);
+  const customRulesList = customRules.length > 0
+    ? customRules.map((r) => `- ${r}`).join('\n')
+    : '- Keep all user-facing labels in plain, jargon-free English.';
+
+  const clarificationsList = (state.clarifications || []).length > 0
+    ? state.clarifications.map((c) => `- **${c.category}:** ${c.selectedAnswer || c.options[0]}`).join('\n')
+    : '- Follow the tasks in `tasks.md` sequentially, respecting `(HITL)` and `(AFK)` checkpoints.';
 
   const raw = `# AGENTS.md — ${state.appName} Project Instructions
 
 ## 1. Product
-${state.appName} (${state.tagline})
-${state.coreIdea}
+${state.appName} (${state.tagline || 'No tagline provided'})
+${state.coreIdea || 'No core idea provided'}
 
 ## 2. Stack
 - **Core Stack:** ${state.proConfig.stackSummary}
@@ -250,13 +279,7 @@ ${customRulesList}
 - Canonicalize all file write paths in Rust before writing to prevent directory traversal (\`../\`).
 
 ## 9. Workflow & Clarification Decisions
-${
-  state.clarifications.length > 0
-    ? state.clarifications
-        .map((c) => `- **${c.category}:** ${c.selectedAnswer || c.options[0]}`)
-        .join('\n')
-    : '- Follow the tasks in `tasks.md` sequentially, respecting `(HITL)` and `(AFK)` checkpoints.'
-}
+${clarificationsList}
 
 ## 10. Generated Files
 - Do NOT edit generated build artifacts in \`src-tauri/target/\` or \`dist/\`.
@@ -267,7 +290,9 @@ ${
 }
 
 export function compileRustLibRs(state: ProjectState): string {
-  return `// src-tauri/src/lib.rs — Generated by PromptForge for ${state.appName}
+  const raw = `// src-tauri/src/lib.rs — Generated by PromptForge for ${state.appName}
+// Primary Model: {{primary_model}}
+// Target OS: {{target_os}}
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Component, Path, PathBuf};
@@ -323,6 +348,7 @@ pub fn set_secure_key(_service: String, key: String) -> Result<(), String> {
     Ok(())
 }
 `;
+  return interpolateVariables(raw, state.proConfig.templateVariables);
 }
 
 export function compileSpecFile(state: ProjectState, fileId: SpecFileId): string {
@@ -344,12 +370,18 @@ export function compilePlatformContract(
   state: ProjectState,
   platform: ExportPlatformId
 ): { title: string; subtitle: string; badge: string; promptText: string } {
+  const safeClarifications = state.clarifications || [];
   const clarificationsSummary =
-    state.clarifications
-      .map((c) => `• ${c.category}: ${c.selectedAnswer || c.options[0]}`)
-      .join('\n') || '• Use clean, accessible defaults.';
+    safeClarifications.length > 0
+      ? safeClarifications
+          .map((c) => `• ${c.category}: ${c.selectedAnswer || c.options[0]}`)
+          .join('\n')
+      : '• Use clean, accessible defaults.';
 
-  const featuresBullets = state.features.map((f, i) => `${i + 1}. ${f}`).join('\n');
+  const safeFeatures = (state.features || []).map(f => f.trim()).filter(Boolean);
+  const featuresBullets = safeFeatures.length > 0
+    ? safeFeatures.map((f, i) => `${i + 1}. ${f}`).join('\n')
+    : '1. Core functionality to be defined.';
 
   const rulesSummary = [
     state.groundRules.offlineFirst && 'Offline-First in-memory & local state persistence',
@@ -361,12 +393,19 @@ export function compilePlatformContract(
     .map((r) => `• ${r}`)
     .join('\n');
 
+  const rulesSummaryFallback = rulesSummary.length > 0 ? rulesSummary : '• Standard best practices apply.';
+
+  const safeCustomRules = (state.proConfig.customRules || []).map(r => r.trim()).filter(Boolean);
+  const customRulesSummary = safeCustomRules.length > 0
+    ? safeCustomRules.map((r) => `• ${r}`).join('\n')
+    : '• Follow standard plain-English labeling conventions.';
+
   switch (platform) {
     case 'stitch': {
       const promptText = interpolateVariables(
         `# Google Stitch UI Generation Contract — ${state.appName}
 
-Design a high-precision, keyboard-first desktop workstation interface for **${state.appName}** (${state.tagline}).
+Design a high-precision, keyboard-first desktop workstation interface for **${state.appName}** (${state.tagline || 'No tagline'}).
 
 ## 1. Visual Language & Surface Tokens
 - **Canvas Backdrop**: Velvety night-violet \`#0F0C1B\`
@@ -401,10 +440,10 @@ ${clarificationsSummary}
       const promptText = interpolateVariables(
         `# Google AI Studio Full-Stack Build Prompt — ${state.appName}
 
-Build the complete, working full-stack application for **${state.appName}**: ${state.tagline}
+Build the complete, working full-stack application for **${state.appName}**: ${state.tagline || 'No tagline'}
 
 ## Product Overview
-${state.coreIdea}
+${state.coreIdea || 'No core idea provided'}
 
 ## Core Interactive Capabilities
 ${featuresBullets}
@@ -416,9 +455,9 @@ ${clarificationsSummary}
 - **Stack**: ${state.proConfig.stackSummary}
 - **AI Integration**: Server-side Express endpoints in \`server.ts\` using official \`@google/genai\` SDK with model \`{{primary_model}}\` and \`User-Agent: 'aistudio-build'\`. Never call Gemini directly from browser code or render API key input fields.
 - **Quality Rules**:
-${rulesSummary}
+${rulesSummaryFallback}
 - **Custom Conventions**:
-${state.proConfig.customRules.map((r) => `• ${r}`).join('\n')}`,
+${customRulesSummary}`,
         state.proConfig.templateVariables
       );
       return {
@@ -436,13 +475,13 @@ ${state.proConfig.customRules.map((r) => `• ${r}`).join('\n')}`,
 Execute the multi-file implementation and verification plan for **${state.appName}** targeting \`{{target_os}}\`.
 
 ## 1. Mission & Architecture
-${state.coreIdea}
+${state.coreIdea || 'No core idea provided'}
 - **Architecture**: ${state.proConfig.architectureStyle}
 - **Security Boundary**: ${state.proConfig.securityBoundary}
 - **Default Export Path**: \`{{export_dir}}\`
 
 ## 2. Non-Negotiable Ground Rules
-${rulesSummary}
+${rulesSummaryFallback}
 
 ## 3. Confirmed Architectural Decisions
 ${clarificationsSummary}
@@ -467,7 +506,7 @@ ${featuresBullets}
       const promptText = interpolateVariables(
         `# GitHub Copilot Workspace & Repository Instructions — ${state.appName}
 
-You are working on **${state.appName}** (${state.tagline}).
+You are working on **${state.appName}** (${state.tagline || 'No tagline'}).
 Follow these repository instructions for all code completions and multi-file edits:
 
 ## Stack & Conventions
@@ -496,10 +535,10 @@ ${featuresBullets}
       const promptText = interpolateVariables(
         `# Gemini Canvas Interactive Refinement Contract — ${state.appName}
 
-Help me interactively polish and expand the user experience of **${state.appName}** (${state.tagline}).
+Help me interactively polish and expand the user experience of **${state.appName}** (${state.tagline || 'No tagline'}).
 
 ## Core Concept
-${state.coreIdea}
+${state.coreIdea || 'No core idea provided'}
 
 ## Interactive Flows to Prototype & Refine
 ${featuresBullets}
