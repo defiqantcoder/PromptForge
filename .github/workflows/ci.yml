@@ -52,6 +52,9 @@ jobs:
       - name: Typecheck TypeScript
         run: npx tsc --noEmit
 
+      - name: Run frontend tests
+        run: npm test
+
       - name: Check Rust backend
         working-directory: src-tauri
         run: cargo check

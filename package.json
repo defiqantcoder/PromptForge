@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "test": "tsx --test tests/*.test.ts server.test.ts"
   },
   "dependencies": {
     "@google/genai": "^3.1.0",
