@@ -2,7 +2,7 @@ import express from 'express';
 import { createServer as createViteServer } from 'vite';
 import path from 'path';
 import dotenv from 'dotenv';
-import { GoogleGenAI, Type } from '@google/genai';
+import { GoogleGenAI, Type, type GenerateContentParameters } from '@google/genai';
 import { fileURLToPath } from 'url';
 
 dotenv.config();
@@ -20,14 +20,41 @@ function getAiClient(): GoogleGenAI {
   });
 }
 
+function isGeminiConfigured(): boolean {
+  const key = process.env.GEMINI_API_KEY?.trim();
+  return Boolean(key && key !== 'MY_GEMINI_API_KEY' && key.length > 5);
+}
+
+class GeminiTimeoutError extends Error {}
+
+async function generateContentWithTimeout(ai: GoogleGenAI, params: GenerateContentParameters) {
+  const controller = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      ai.models.generateContent({
+        ...params,
+        config: { ...params.config, abortSignal: controller.signal },
+      }),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => {
+          reject(new GeminiTimeoutError());
+          controller.abort();
+        }, 30000);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export async function createApp() {
   const app = express();
   app.use(express.json({ limit: '2mb' }));
 
 
   const requireGeminiKey = (req: express.Request, res: express.Response, next: express.NextFunction) => {
-    const key = process.env.GEMINI_API_KEY;
-    if (!key || key === 'MY_GEMINI_API_KEY' || key.trim().length === 0) {
+    if (!isGeminiConfigured()) {
       res.status(503).json({ error: 'PromptForge needs a valid Gemini API Key to work. Please set it in your environment variables.' });
       return;
     }
@@ -36,14 +63,9 @@ export async function createApp() {
 
   // Health & API Key readiness endpoint
   app.get('/api/health', (_req, res) => {
-    const hasKey = Boolean(
-      process.env.GEMINI_API_KEY &&
-        process.env.GEMINI_API_KEY !== 'MY_GEMINI_API_KEY' &&
-        process.env.GEMINI_API_KEY.trim().length > 5
-    );
     res.json({
       status: 'ok',
-      geminiConfigured: hasKey,
+      geminiConfigured: isGeminiConfigured(),
       model: 'gemini-3.8-flash',
     });
   });
@@ -62,8 +84,7 @@ export async function createApp() {
       }
 
       const ai = getAiClient();
-      const response = await (Promise.race([
-        ai.models.generateContent({
+      const response = await generateContentWithTimeout(ai, {
         model: 'gemini-3.8-flash',
         contents: `You are PromptForge, a friendly product architect that translates rough, plain-English app thoughts into clear, jargon-free specifications.
 
@@ -105,9 +126,7 @@ Expand this rough idea into:
             required: ['appName', 'tagline', 'expandedIdea', 'suggestedFeatures'],
           },
         },
-      }),
-      new Promise<any>((_, reject) => setTimeout(() => reject(new Error('TIMEOUT')), 30000))
-      ]) as Promise<any>);
+      });
 
       const rawText = (response.text ?? '{}').trim();
       let parsed;
@@ -118,14 +137,14 @@ Expand this rough idea into:
         return;
       }
       res.json(parsed);
-    } catch (error: any) {
-      if (error?.message === 'TIMEOUT') {
+    } catch (error: unknown) {
+      if (error instanceof GeminiTimeoutError) {
         res.status(504).json({ error: 'Gemini took too long. Your existing text has been safely preserved.' });
         return;
       }
+      console.error('Gemini request failed', { category: 'generation_failure' });
       res.status(500).json({
         error:
-          error?.message ||
           'Could not reach Gemini AI to flesh out your idea. Your existing text has been safely preserved.',
       });
     }
@@ -150,8 +169,7 @@ Expand this rough idea into:
         categoryHint || seedCategories[Math.floor(Math.random() * seedCategories.length)];
 
       const ai = getAiClient();
-      const response = await (Promise.race([
-        ai.models.generateContent({
+      const response = await generateContentWithTimeout(ai, {
         model: 'gemini-3.8-flash',
         contents: `Invent an original, practical, and inspiring application idea around the theme: "${chosenTheme}".
 Make it concrete, distinctive, and immediately understandable by a non-technical builder.
@@ -223,9 +241,7 @@ Include:
             ],
           },
         },
-      }),
-      new Promise<any>((_, reject) => setTimeout(() => reject(new Error('TIMEOUT')), 30000))
-      ]) as Promise<any>);
+      });
 
       const rawText = (response.text ?? '{}').trim();
       let parsed;
@@ -236,14 +252,14 @@ Include:
         return;
       }
       res.json(parsed);
-    } catch (error: any) {
-      if (error?.message === 'TIMEOUT') {
+    } catch (error: unknown) {
+      if (error instanceof GeminiTimeoutError) {
         res.status(504).json({ error: 'Gemini took too long. Your existing text has been safely preserved.' });
         return;
       }
+      console.error('Gemini request failed', { category: 'generation_failure' });
       res.status(500).json({
         error:
-          error?.message ||
           'Could not generate a random AI idea right now. Try again or pick a starter template.',
       });
     }
@@ -271,8 +287,7 @@ Include:
       }
 
       const ai = getAiClient();
-      const response = await (Promise.race([
-        ai.models.generateContent({
+      const response = await generateContentWithTimeout(ai, {
         model: 'gemini-3.8-flash',
         contents: `Analyze this application specification and generate 3 sharp, friendly multiple-choice clarification questions ("Grill Me") that uncover missing product details, edge cases, or user experience choices.
 
@@ -318,9 +333,7 @@ Rules for the 3 questions:
             required: ['questions'],
           },
         },
-      }),
-      new Promise<any>((_, reject) => setTimeout(() => reject(new Error('TIMEOUT')), 30000))
-      ]) as Promise<any>);
+      });
 
       const rawText = (response.text ?? '{}').trim();
       let parsed;
@@ -331,14 +344,14 @@ Rules for the 3 questions:
         return;
       }
       res.json(parsed);
-    } catch (error: any) {
-      if (error?.message === 'TIMEOUT') {
+    } catch (error: unknown) {
+      if (error instanceof GeminiTimeoutError) {
         res.status(504).json({ error: 'Gemini took too long. Your existing text has been safely preserved.' });
         return;
       }
+      console.error('Gemini request failed', { category: 'generation_failure' });
       res.status(500).json({
         error:
-          error?.message ||
           'Gemini took too long or encountered an error while generating interview questions. Your current progress is safe.',
       });
     }
