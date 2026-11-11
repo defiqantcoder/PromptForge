@@ -707,7 +707,7 @@ Include 4 practical language comparisons explaining clearly what each language i
   } else {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
-    app.get('*', (_req, res) => {
+    app.get('*', rateLimiter, (_req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }
