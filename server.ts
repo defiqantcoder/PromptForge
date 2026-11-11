@@ -4,6 +4,7 @@ import path from 'path';
 import dotenv from 'dotenv';
 import { GoogleGenAI, Type, type GenerateContentParameters } from '@google/genai';
 import { fileURLToPath } from 'url';
+import { registerSpecValidateRoute } from './server/specValidateRoute.js';
 
 dotenv.config();
 
@@ -120,6 +121,8 @@ export async function createApp() {
   const app = express();
   app.disable('x-powered-by');
   app.use(express.json({ limit: '25mb' }));
+
+  registerSpecValidateRoute(app);
 
   const requireGeminiKey = (_req: express.Request, res: express.Response, next: express.NextFunction) => {
     if (!isGeminiConfigured()) {
