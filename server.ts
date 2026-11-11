@@ -4,6 +4,7 @@ import path from 'path';
 import dotenv from 'dotenv';
 import { GoogleGenAI, Type, type GenerateContentParameters } from '@google/genai';
 import { fileURLToPath } from 'url';
+import { registerArchiveRoutes } from "./server/archiveRoute.ts";
 
 dotenv.config();
 
@@ -118,6 +119,7 @@ async function executeGeminiJsonRoute(
 
 export async function createApp() {
   const app = express();
+  registerArchiveRoutes(app);
   app.disable('x-powered-by');
   app.use(express.json({ limit: '25mb' }));
 
