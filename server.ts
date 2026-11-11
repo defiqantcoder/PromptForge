@@ -5,6 +5,7 @@ import path from 'path';
 import dotenv from 'dotenv';
 import { GoogleGenAI, Type, type GenerateContentParameters } from '@google/genai';
 import { fileURLToPath } from 'url';
+import { registerArchiveRoutes } from "./server/archiveRoute.ts";
 
 dotenv.config();
 
@@ -131,6 +132,7 @@ export async function createApp() {
   app.use('/api', securityHeadersMiddleware);
   app.use('/api', rateLimiter);
   app.use('/api', localOriginGuard);
+  registerArchiveRoutes(app);
 
   const requireGeminiKey = (_req: express.Request, res: express.Response, next: express.NextFunction) => {
     if (!isGeminiConfigured()) {
