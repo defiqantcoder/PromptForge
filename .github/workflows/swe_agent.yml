@@ -1,0 +1,26 @@
+name: SWE-agent Issue Solver
+
+on:
+  issues:
+    types: [labeled]
+
+jobs:
+  solve_issue:
+    if: github.event.label.name == 'swe-agent'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run SWE-agent
+        uses: SWE-agent/SWE-agent@main
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        with:
+          model: "gemini/gemini-3.8-flash"
+          issue_number: ${{ github.event.issue.number }}
