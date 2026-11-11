@@ -5,6 +5,8 @@ import { createApp } from '../server.ts';
 import { ProjectState } from '../src/types/project.js';
 
 test('specValidateRoute: validates project state and identifies missing elements', async () => {
+  const originalEnv = process.env.NODE_ENV;
+  process.env.NODE_ENV = 'test';
   const app = await createApp();
   const server = app.listen(0, '127.0.0.1');
   await once(server, 'listening');
@@ -28,7 +30,12 @@ test('specValidateRoute: validates project state and identifies missing elements
       securityBoundary: 'Local',
       taskSlicingMode: 'hitl-first',
       customRules: [],
-      templateVariables: {}
+      templateVariables: {
+        accent_color: '#8B5CF6',
+        primary_model: 'gemini-3.8-flash',
+        target_os: 'Ubuntu 24.04 LTS',
+        export_dir: '~/Projects/valid-app',
+      },
     },
     workflowProgress: {
       stitchDone: true,
@@ -81,7 +88,11 @@ test('specValidateRoute: validates project state and identifies missing elements
       coreIdea: 'My app is {{app_type}} with {{missing}}',
       proConfig: {
         ...validProject.proConfig,
-        templateVariables: { app_type: 'app_type', missing: 'missing' }
+        templateVariables: {
+          ...validProject.proConfig.templateVariables,
+          app_type: 'app_type',
+          missing: 'missing',
+        }
       }
     };
     const res4 = await fetch(`${base}/api/specs/validate`, {
@@ -110,6 +121,10 @@ test('specValidateRoute: validates project state and identifies missing elements
     });
     assert.equal(res6.status, 400);
   } finally {
-    server.close();
+    if (originalEnv === undefined) delete process.env.NODE_ENV;
+    else process.env.NODE_ENV = originalEnv;
+    await new Promise<void>((resolve, reject) =>
+      server.close((err) => (err ? reject(err) : resolve()))
+    );
   }
 });

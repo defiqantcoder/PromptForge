@@ -1,3 +1,4 @@
+import { securityHeadersMiddleware, createRateLimiter, localOriginGuard } from './server/security.js';
 import express from 'express';
 import { createServer as createViteServer } from 'vite';
 import path from 'path';
@@ -5,6 +6,7 @@ import dotenv from 'dotenv';
 import { GoogleGenAI, Type, type GenerateContentParameters } from '@google/genai';
 import { fileURLToPath } from 'url';
 import { registerSpecValidateRoute } from './server/specValidateRoute.js';
+import { registerArchiveRoutes } from './server/archiveRoute.ts';
 
 dotenv.config();
 
@@ -122,6 +124,16 @@ export async function createApp() {
   app.disable('x-powered-by');
   app.use(express.json({ limit: '25mb' }));
 
+  const rateLimiter = createRateLimiter({
+    windowMs: 60000,
+    maxRequests: 1000,
+    skip: () => process.env.NODE_ENV === 'test'
+  });
+
+  app.use('/api', securityHeadersMiddleware);
+  app.use('/api', rateLimiter);
+  app.use('/api', localOriginGuard);
+  registerArchiveRoutes(app);
   registerSpecValidateRoute(app);
 
   const requireGeminiKey = (_req: express.Request, res: express.Response, next: express.NextFunction) => {
@@ -690,7 +702,7 @@ Include 4 practical language comparisons explaining clearly what each language i
     );
   });
 
-  if (process.env.NODE_ENV !== 'production') {
+  if (process.env.NODE_ENV !== 'production' && process.env.NODE_ENV !== 'test') {
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',
@@ -699,7 +711,7 @@ Include 4 practical language comparisons explaining clearly what each language i
   } else {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
-    app.get('*', (_req, res) => {
+    app.get('*', rateLimiter, (_req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }
