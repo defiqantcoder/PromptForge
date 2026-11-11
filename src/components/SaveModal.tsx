@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import {
   AlertTriangle,
@@ -6,6 +6,7 @@ import {
   Download,
   Folder,
   FolderOpen,
+  FolderSearch,
   HardDrive,
   ShieldCheck,
   Terminal,
@@ -20,6 +21,9 @@ import {
 } from '../services/compiler';
 import {
   canonicalizeLinuxPath,
+  getNativeHomeDir,
+  isTauriEnvironment,
+  pickUbuntuDirectory,
   saveSpecBundle,
   triggerBrowserFileDownload,
 } from '../services/tauriBridge';
@@ -38,7 +42,7 @@ const UBUNTU_QUICK_DIRS = [
   },
   {
     label: 'Current Repository Root',
-    path: '/home/ubuntu/workspace/app-spec',
+    path: '~/workspace/app-spec',
     description: 'Direct handoff for Antigravity / Copilot',
   },
   {
@@ -52,10 +56,17 @@ export function SaveModal({ open, onOpenChange, state }: SaveModalProps) {
   const [targetDir, setTargetDir] = useState(
     state.proConfig.templateVariables.export_dir || '~/Projects/promptforge-specs'
   );
+  const [nativeHome, setNativeHome] = useState<string | undefined>(undefined);
   const [downloadOnSave, setDownloadOnSave] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveResult, setSaveResult] = useState<SaveBundleResult | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const isNativeDesktop = isTauriEnvironment();
+
+  useEffect(() => {
+    if (!open || !isNativeDesktop) return;
+    getNativeHomeDir().then(setNativeHome);
+  }, [open, isNativeDesktop]);
 
   const compiledFiles: Record<string, string> = {
     'AGENTS.md': compileAgentsMd(state),
@@ -64,7 +75,7 @@ export function SaveModal({ open, onOpenChange, state }: SaveModalProps) {
     'tasks.md': compileTasksMd(state),
   };
 
-  const pathCheck = canonicalizeLinuxPath(targetDir);
+  const pathCheck = canonicalizeLinuxPath(targetDir, nativeHome);
 
   const fileRows = Object.entries(compiledFiles).map(([name, content]) => ({
     name,
@@ -74,6 +85,23 @@ export function SaveModal({ open, onOpenChange, state }: SaveModalProps) {
   }));
 
   const totalBytes = fileRows.reduce((acc, f) => acc + f.bytes, 0);
+
+  const handleBrowseFolder = async () => {
+    setSaveError(null);
+    try {
+      const selected = await pickUbuntuDirectory(
+        pathCheck.valid ? pathCheck.canonicalPath : nativeHome
+      );
+      if (selected) {
+        setTargetDir(selected);
+        setSaveResult(null);
+      }
+    } catch (err: unknown) {
+      setSaveError(
+        err instanceof Error ? err.message : 'Unable to open the native folder picker.'
+      );
+    }
+  };
 
   const handleConfirmSave = async () => {
     setSaving(true);
@@ -166,7 +194,7 @@ export function SaveModal({ open, onOpenChange, state }: SaveModalProps) {
                 })}
               </div>
 
-              {/* Manual Path Input + Canonical Guard Preview */}
+              {/* Manual Path Input + Native Browse + Canonical Guard Preview */}
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
                   <Terminal className="w-4 h-4 text-[#A78BFA] shrink-0" />
@@ -178,9 +206,19 @@ export function SaveModal({ open, onOpenChange, state }: SaveModalProps) {
                       setSaveResult(null);
                       setSaveError(null);
                     }}
-                    placeholder="/home/ubuntu/Projects/my-app-spec"
+                    placeholder={nativeHome ? `${nativeHome}/Projects/my-app-spec` : '/home/ubuntu/Projects/my-app-spec'}
                     className="w-full px-3 py-2 rounded-lg bg-[#0F0C1B] border border-[#C084FC]/25 text-xs font-mono text-white focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]"
                   />
+                  {isNativeDesktop && (
+                    <button
+                      type="button"
+                      onClick={handleBrowseFolder}
+                      className="pf-btn-secondary inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap shrink-0 cursor-pointer"
+                    >
+                      <FolderSearch className="w-3.5 h-3.5 text-[#D0BCFF]" />
+                      <span>Browse Folder…</span>
+                    </button>
+                  )}
                 </div>
 
                 {pathCheck.valid ? (
@@ -236,23 +274,25 @@ export function SaveModal({ open, onOpenChange, state }: SaveModalProps) {
               </div>
             </div>
 
-            {/* Browser Direct Download Toggle */}
-            <label className="flex items-center justify-between gap-3 p-3 rounded-xl bg-[#141120] border border-[#C084FC]/20 cursor-pointer">
-              <div>
-                <div className="text-xs font-medium text-white">
-                  Trigger direct browser downloads for all 4 files on save
+            {/* Browser Direct Download Toggle (Web Preview Only) */}
+            {!isNativeDesktop && (
+              <label className="flex items-center justify-between gap-3 p-3 rounded-xl bg-[#141120] border border-[#C084FC]/20 cursor-pointer">
+                <div>
+                  <div className="text-xs font-medium text-white">
+                    Trigger direct browser downloads for all 4 files on save
+                  </div>
+                  <div className="text-[11px] text-[#958EA0]">
+                    Automatically downloads AGENTS.md, spec.md, plan.md, and tasks.md while previewing in browser
+                  </div>
                 </div>
-                <div className="text-[11px] text-[#958EA0]">
-                  Automatically downloads AGENTS.md, spec.md, plan.md, and tasks.md while previewing in browser
-                </div>
-              </div>
-              <input
-                type="checkbox"
-                checked={downloadOnSave}
-                onChange={(e) => setDownloadOnSave(e.target.checked)}
-                className="w-4 h-4 accent-[#8B5CF6] rounded cursor-pointer"
-              />
-            </label>
+                <input
+                  type="checkbox"
+                  checked={downloadOnSave}
+                  onChange={(e) => setDownloadOnSave(e.target.checked)}
+                  className="w-4 h-4 accent-[#8B5CF6] rounded cursor-pointer"
+                />
+              </label>
+            )}
 
             {saveError && (
               <div className="p-3 rounded-xl bg-[#EF4444]/15 border border-[#EF4444]/40 text-xs text-[#FFB4AB] flex items-center gap-2">

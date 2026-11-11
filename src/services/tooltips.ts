@@ -153,4 +153,9 @@ export const TOOLTIP_DICTIONARY: Record<string, TooltipEntry> = {
     description: 'Designed for rapid interactive prototyping, live preview refinement, and self-contained component polishing.',
     aiUsage: 'Paste into Gemini Canvas to iterate visually on flows, micro-interactions, and copy.',
   },
+  'action-keyring': {
+    title: 'Desktop Gemini Keyring Storage',
+    description: 'Saves your Gemini API key securely inside your Ubuntu system keyring so AI features work offline from any Express server.',
+    aiUsage: 'Rust reads this key directly from GNOME Keyring during native Gemini requests and never saves it to plain text files.',
+  },
 };

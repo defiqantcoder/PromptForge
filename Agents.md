@@ -4,29 +4,32 @@
 PromptForge is a native Ubuntu desktop workstation that translates plain-language app ideas into structured, production-grade specification files (`spec.md`, `plan.md`, `tasks.md`, `AGENTS.md`) and platform-ready prompt contracts for Google Stitch, Google AI Studio, Google Antigravity (AGY), GitHub Copilot, and Gemini Canvas. It strips engineering jargon across three interface tiers (Simple, Balanced, Pro) while offering interactive hover tooltips, AI-assisted auto-expansion, and Socratic clarification interviews.
 
 ## Stack
-- Desktop Shell: Tauri v2 (Rust 1.80+)
-- Frontend: React 19, TypeScript 5.x, Vite
+- Desktop Shell: Tauri v2 (Rust 1.90+, edition 2024)
+- Frontend: React 19, TypeScript, Vite 8
 - Styling: Tailwind CSS v4 (Glassmorphic dark-purple design tokens)
 - Icons & UI Components: Lucide React, Radix UI Primitives (Tooltip, Dialog, Tabs)
-- AI Engine: Google Gemini API via official `@google/genai` SDK (`gemini-2.5-flash`)
-- System Integration: `@tauri-apps/api/core` (IPC), `tauri-plugin-fs`, `tauri-plugin-dialog`
+- AI Engine: Google Gemini API (`gemini-3.8-flash`) via `@google/genai` (Express `server.ts`) and `reqwest` (`gemini_proxy_request` in Rust)
+- System Integration: `@tauri-apps/api/core` (IPC), `@tauri-apps/api/path`, `tauri-plugin-fs`, `tauri-plugin-dialog`, `keyring`
 
 ## Repository Structure
 - `src/` — React frontend application
-  - `components/` — Modular UI blocks (Card, Tooltip, ModeSwitcher, CodeViewer)
-  - `decks/` — Workstation decks (ManifestDeck, ArchitectureDeck, TasksDeck, GrillDeck, ExporterDeck)
-  - `services/` — Gemini API integration and prompt synthesis logic
+  - `components/` — Modular UI blocks (`Card`, `Tooltip`, `ModeSwitcher`, `CodeViewer`, `SaveModal`, `KeyringModal`)
+  - `decks/` — Workstation decks (`ManifestDeck`, `ArchitectureDeck`, `TasksDeck`, `GrillDeck`, `ExporterDeck`)
+  - `services/` — Gemini API integration, Tauri bridge, presets, tooltips, and prompt synthesis logic
   - `types/` — Strict TypeScript domain definitions and schema models
 - `src-tauri/` — Native Rust backend
-  - `src/lib.rs` — Tauri command handlers (`write_spec_files`, `validate_gemini_key`)
-  - `src/main.rs` — Desktop entry point and plugin registration
+  - `src/lib.rs` — Tauri command handlers (`save_spec_bundle`, `get_secure_key`, `set_secure_key`, `has_secure_key`, `gemini_proxy_request`)
+  - `src/main.rs` — Desktop entry point and library invocation
   - `capabilities/default.json` — Least-privilege desktop security permissions
 
 ## Commands
 - Install dependencies: `npm install`
+- Launch web workstation: `npm run dev`
 - Launch desktop development: `npm run tauri dev`
 - Run frontend typecheck: `npx tsc --noEmit`
-- Run frontend test suite: `npm run test`
+- Run test suite: `npm test` (`tsx --test tests/*.test.ts server.test.ts`)
+- Check Rust backend: `cargo check --manifest-path src-tauri/Cargo.toml`
+- Run Rust tests: `cargo test --manifest-path src-tauri/Cargo.toml`
 - Build production native package: `npm run tauri build`
 
 ## Architecture
@@ -41,9 +44,9 @@ PromptForge is a native Ubuntu desktop workstation that translates plain-languag
 - Keep API error handling explicit with friendly, human-readable toast notifications.
 
 ## Testing
-- Enforce behavioral testing using Vitest and React Testing Library for frontend forms.
-- Mock all Tauri IPC command invocations (`@tauri-apps/api/core`) in test suites.
-- Assert that hover tooltips mount with accessible ARIA semantics (`role="tooltip"`).
+- Enforce behavioral testing using Node's `node:test` runner via `tsx --test` (`npm test`) and Rust `cargo test`.
+- Mock all Tauri IPC command invocations (`@tauri-apps/api/core`) in frontend test suites.
+- Assert that hover tooltips and compiler/server contracts preserve accessibility, timeouts, and error privacy.
 
 ## Security
 - Store the Gemini API key securely in the local desktop keyring or encrypted app data store; never hardcode keys or log them to standard out.

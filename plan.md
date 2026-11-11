@@ -6,11 +6,12 @@
   - Five stacked workstation decks (`ManifestDeck`, `ArchitectureDeck`, `GrillDeck`, `TasksDeck`, `ExporterDeck`).
   - Contract compiler generating `spec.md`, `plan.md`, `tasks.md`, `AGENTS.md`, and platform prompt contracts (Stitch, AI Studio, Antigravity, Copilot, Canvas).
   - Universal 100ms hover explainer dictionary with accessible ARIA semantics.
-  - Express server (`server.ts`) acting as a temporary development proxy for Gemini API endpoints.
-- **Architectural Gaps to Bridge:**
-  - Tauri configuration files (`src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`, `src-tauri/src/main.rs`) are missing from the project tree.
-  - In native desktop mode, the app cannot rely on `server.ts` (Node/Express). Gemini API calls and keyring storage must route directly through Rust IPC commands or direct client-side requests using keys loaded from the OS keyring.
-  - Directory picking in `SaveModal.tsx` uses simulated paths; it needs native file-picker integration via `@tauri-apps/plugin-dialog`.
+  - Hardened Express server (`server.ts`) acting as the web-preview proxy for Gemini API endpoints (`gemini-3.8-flash`) with 30s AbortController timeouts.
+  - Native Tauri v2 crate harness (`src-tauri/Cargo.toml`, `src-tauri/src/main.rs`, `src-tauri/tauri.conf.json`, `src-tauri/capabilities/default.json`) with `1440x900` dark `#0F0C1B` window configuration and least-privilege permissions (`core:default`, `dialog:allow-open`, `fs:default`).
+  - Native Rust IPC handlers in `src-tauri/src/lib.rs`: `save_spec_bundle` (with `~/` home expansion and `..` traversal rejection), `get_secure_key`, `set_secure_key`, `has_secure_key`, and `gemini_proxy_request` (30s `reqwest` timeout + `x-goog-api-key` header).
+  - Dual-mode `geminiClient.ts` routing (`gemini_proxy_request` in Tauri, `/api/gemini/*` in browser) + desktop `KeyringModal.tsx` and native `@tauri-apps/plugin-dialog` directory picker in `SaveModal.tsx`.
+- **Remaining Phase 4 Verification:**
+  - Sync markdown specs/tasks and verify native Ubuntu `.deb` / `.AppImage` bundle compilation (`npm run tauri build`).
 
 ---
 
@@ -32,8 +33,8 @@
 │  ┌──────────────────────────────────────────────────┐  │
 │  │ lib.rs Command Handlers                          │  │
 │  │  • save_spec_bundle (Canonical path file writer) │  │
-│  │  • get_api_key / set_api_key (libsecret/keyring) │  │
-│  │  • gemini_generate (reqwest HTTPS proxy)        │  │
+│  │  • get/set/has_secure_key (libsecret/keyring)    │  │
+│  │  • gemini_proxy_request (reqwest HTTPS proxy)    │  │
 │  └──────────────────────────────────────────────────┘  │
 └────────────────────────────────────────────────────────┘
 ---

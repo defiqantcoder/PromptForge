@@ -123,8 +123,9 @@ PromptForge/
 │   ├── components/
 │   │   ├── Card.tsx                # Frosted glass card primitive
 │   │   ├── CodeViewer.tsx          # Live syntax/markdown inspector with copy actions
+│   │   ├── KeyringModal.tsx        # Desktop GNOME Keyring API key modal
 │   │   ├── ModeSwitcher.tsx        # Simple | Balanced | Pro mode selector
-│   │   ├── SaveModal.tsx           # Ubuntu directory export & preview modal
+│   │   ├── SaveModal.tsx           # Ubuntu directory picker & bundle export modal
 │   │   └── Tooltip.tsx             # Accessible 100ms hover explainer (role="tooltip")
 │   ├── decks/
 │   │   ├── ManifestDeck.tsx        # Core idea, target platform, and main steps
@@ -134,18 +135,20 @@ PromptForge/
 │   │   └── ExporterDeck.tsx        # Multi-platform prompt contracts & export triggers
 │   └── services/
 │       ├── compiler.ts             # Pure deterministic compiler for specs & platform prompts
-│       ├── geminiClient.ts         # Frontend client with 30s AbortController timeout
+│       ├── geminiClient.ts         # Dual-mode Tauri IPC / Express client with 30s timeout
 │       ├── presets.ts              # Default sample project & curated starter templates
-│       ├── tauriBridge.ts          # Dual-mode Tauri IPC / browser download bridge
+│       ├── tauriBridge.ts          # Native dialog, keyring, and export IPC bridge
 │       └── tooltips.ts             # Plain-English tooltip dictionary
 ├── src-tauri/
 │   ├── Cargo.toml                  # Rust dependencies (tauri v2, reqwest, keyring, plugins)
-│   ├── tauri.conf.json             # App identifier, 1440x900 window, bundle settings
+│   ├── tauri.conf.json             # App identifier, 1440x900 window, Ubuntu bundle targets
 │   ├── capabilities/default.json   # Least-privilege permissions (core:default, dialog:allow-open, fs:default)
 │   ├── build.rs                    # Tauri build script
 │   └── src/
 │       ├── main.rs                 # Desktop binary entrypoint
-│       └── lib.rs                  # IPC commands: save_spec_bundle, get_secure_key, set_secure_key
+│       └── lib.rs                  # IPC commands: save_spec_bundle, get/set/has_secure_key, gemini_proxy_request
+├── tests/                          # Unit tests (compiler, presets, tauriBridge, geminiClient)
+├── server.test.ts                  # Express route, timeout, and error-privacy regression tests
 ├── Agents.md                       # Agent architecture, conventions, and security instructions
 ├── spec.md                         # Product specification & EARS behavioral requirements
 ├── plan.md                         # Phased native desktop technical roadmap
@@ -158,15 +161,15 @@ PromptForge/
 ## Security & Architecture Notes
 
 - **Sandboxed UI Layer**: Frontend code never writes directly to disk; file writes route through the Rust [`save_spec_bundle`](src-tauri/src/lib.rs) IPC command when running natively.
-- **Path Traversal Guard**: Both `canonicalizeLinuxPath` (`src/services/tauriBridge.ts`) and `validate_and_resolve_dir` (`src-tauri/src/lib.rs`) reject `..` segments, canonicalize target directories, and restrict written filenames strictly to `AGENTS.md`, `spec.md`, `plan.md`, and `tasks.md`.
+- **Path Traversal Guard**: Both `canonicalizeLinuxPath` (`src/services/tauriBridge.ts`) and `validate_and_resolve_dir` (`src-tauri/src/lib.rs`) reject `..` segments, expand `~/`, canonicalize target directories, and restrict written filenames strictly to `AGENTS.md`, `spec.md`, `plan.md`, and `tasks.md`.
 - **Least-Privilege Capabilities**: `src-tauri/capabilities/default.json` limits permissions to `core:default`, `dialog:allow-open`, and `fs:default`.
-- **OS Keyring Storage**: `get_secure_key` and `set_secure_key` store API credentials under the `promptforge` service in the system keyring via `keyring`.
+- **OS Keyring Storage**: `get_secure_key`, `set_secure_key`, and `has_secure_key` store and check API credentials under the `promptforge` service in the system keyring via `keyring`, while `gemini_proxy_request` sends credentials strictly via the `x-goog-api-key` header.
 
 ### Roadmap Status (see `plan.md`)
 - **Phase 1 (Complete)**: Tauri v2 crate harness, `1440x900` dark window config, least-privilege capabilities, and `cargo check` / `vite build` verification.
-- **Phase 2 (Planned)**: Native Rust `gemini_proxy_request` IPC command and keyring API key settings UI for standalone packaged builds.
-- **Phase 3 (Planned)**: Wire `@tauri-apps/plugin-dialog` native folder picker into `SaveModal.tsx` and dynamic home-directory expansion.
-- **Phase 4 (Planned)**: Automated Vitest + React Testing Library suite, docs sync, and `.deb` / `.AppImage` bundle verification.
+- **Phase 2 (Complete)**: Native Rust `gemini_proxy_request` IPC command, dual-mode `geminiClient.ts`, and `KeyringModal` for standalone packaged builds.
+- **Phase 3 (Complete)**: Wired `@tauri-apps/plugin-dialog` native folder picker into `SaveModal.tsx` and dynamic `$HOME` / `~/` path resolution.
+- **Phase 4 (Complete)**: Automated Node + Rust test suites, CI integration, documentation sync, and Ubuntu `.deb` / `.AppImage` bundle verification.
 
 ---
 

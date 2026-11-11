@@ -1,4 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
+import { homeDir } from '@tauri-apps/api/path';
+import { open } from '@tauri-apps/plugin-dialog';
 import { SaveBundleResult } from '../types/project';
 
 /**
@@ -11,7 +13,10 @@ export function isTauriEnvironment(): boolean {
 /**
  * Canonicalizes a Linux/Ubuntu directory path and rejects directory traversal ('..') sequences.
  */
-export function canonicalizeLinuxPath(rawPath: string): {
+export function canonicalizeLinuxPath(
+  rawPath: string,
+  homeDirPath = '/home/ubuntu'
+): {
   valid: boolean;
   canonicalPath: string;
   error?: string;
@@ -35,20 +40,51 @@ export function canonicalizeLinuxPath(rawPath: string): {
     };
   }
 
-  // Expand ~ to /home/ubuntu for clean canonical display
+  const cleanHome = homeDirPath.replace(/\/+$/, '') || '/home/ubuntu';
   const expanded = trimmed.startsWith('~/')
-    ? `/home/ubuntu/${trimmed.slice(2)}`
+    ? `${cleanHome}/${trimmed.slice(2)}`
     : trimmed === '~'
-    ? '/home/ubuntu'
+    ? cleanHome
     : trimmed.startsWith('/')
     ? trimmed
-    : `/home/ubuntu/${trimmed}`;
+    : `${cleanHome}/${trimmed}`;
 
   const normalized = expanded.replace(/\/+/g, '/').replace(/\/$/, '') || '/';
   return {
     valid: true,
     canonicalPath: normalized,
   };
+}
+
+/**
+ * Resolves the active user's home directory when running inside Tauri.
+ */
+export async function getNativeHomeDir(): Promise<string | undefined> {
+  if (!isTauriEnvironment()) {
+    return undefined;
+  }
+  try {
+    const dir = await homeDir();
+    return dir ? dir.replace(/\/+$/, '') : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Opens the native Ubuntu directory selector via @tauri-apps/plugin-dialog.
+ */
+export async function pickUbuntuDirectory(defaultPath?: string): Promise<string | null> {
+  if (!isTauriEnvironment()) {
+    return null;
+  }
+  const selected = await open({
+    directory: true,
+    multiple: false,
+    title: 'Choose Export Folder for PromptForge Specs',
+    defaultPath,
+  });
+  return typeof selected === 'string' ? selected : null;
 }
 
 function computePreviewHash(content: string): string {
@@ -81,7 +117,8 @@ export async function saveSpecBundle(
   files: Record<string, string>,
   downloadFilesInBrowser = true
 ): Promise<SaveBundleResult> {
-  const pathCheck = canonicalizeLinuxPath(targetDir);
+  const nativeHome = await getNativeHomeDir();
+  const pathCheck = canonicalizeLinuxPath(targetDir, nativeHome);
   if (!pathCheck.valid) {
     throw new Error(pathCheck.error);
   }
@@ -123,4 +160,24 @@ export async function saveSpecBundle(
     mode: 'browser-simulated',
     timestamp: new Date().toISOString(),
   };
+}
+
+/**
+ * Checks whether an API credential is configured in the desktop OS keyring (or env fallback).
+ */
+export async function hasSecureKey(service = 'gemini'): Promise<boolean> {
+  if (!isTauriEnvironment()) {
+    return false;
+  }
+  return invoke<boolean>('has_secure_key', { service });
+}
+
+/**
+ * Stores an API credential securely in the desktop OS keyring (libsecret / GNOME Keyring).
+ */
+export async function setSecureKey(service: string, key: string): Promise<void> {
+  if (!isTauriEnvironment()) {
+    throw new Error('Desktop keyring storage is only available inside the native Tauri app.');
+  }
+  await invoke<void>('set_secure_key', { service, key });
 }

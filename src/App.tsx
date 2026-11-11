@@ -6,6 +6,7 @@ import {
   FileText,
   FolderKanban,
   HardDrive,
+  KeyRound,
   Layers,
   Loader2,
   RotateCcw,
@@ -34,10 +35,12 @@ import {
   generateGrillQuestions,
   generateRandomAppIdea,
 } from './services/geminiClient';
+import { hasSecureKey, isTauriEnvironment } from './services/tauriBridge';
 import { ModeSwitcher } from './components/ModeSwitcher';
 import { ExplainerTooltip } from './components/Tooltip';
 import { CodeViewer } from './components/CodeViewer';
 import { SaveModal } from './components/SaveModal';
+import { KeyringModal } from './components/KeyringModal';
 import { ManifestDeck } from './decks/ManifestDeck';
 import { ArchitectureDeck } from './decks/ArchitectureDeck';
 import { GrillDeck } from './decks/GrillDeck';
@@ -116,6 +119,16 @@ export function App() {
   const [activeSpecFile, setActiveSpecFile] = useState<SpecFileId>('AGENTS.md');
   const [activePlatform, setActivePlatform] = useState<ExportPlatformId>('stitch');
   const [saveModalOpen, setSaveModalOpen] = useState(false);
+  const [keyringModalOpen, setKeyringModalOpen] = useState(false);
+  const [hasDesktopKey, setHasDesktopKey] = useState(false);
+  const isNativeDesktop = isTauriEnvironment();
+
+  useEffect(() => {
+    if (!isNativeDesktop) return;
+    hasSecureKey('gemini')
+      .then(setHasDesktopKey)
+      .catch(() => setHasDesktopKey(false));
+  }, [isNativeDesktop]);
 
   // AI Loading & Toast States
   const [isExpanding, setIsExpanding] = useState(false);
@@ -486,6 +499,23 @@ export function App() {
                 <span>{isGeneratingRandom ? 'Generating...' : 'Random AI App Idea'}</span>
               </button>
             </ExplainerTooltip>
+
+            {isNativeDesktop && (
+              <ExplainerTooltip tooltipKey="action-keyring" side="bottom" align="end">
+                <button
+                  type="button"
+                  onClick={() => setKeyringModalOpen(true)}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                    hasDesktopKey
+                      ? 'bg-[#34D399]/10 border-[#34D399]/35 text-[#34D399] hover:bg-[#34D399]/20'
+                      : 'bg-[#F59E0B]/15 border-[#F59E0B]/40 text-[#FDE68A] hover:bg-[#F59E0B]/25'
+                  }`}
+                >
+                  <KeyRound className="w-3.5 h-3.5" />
+                  <span>{hasDesktopKey ? 'Gemini Key Ready' : 'Set Gemini Key'}</span>
+                </button>
+              </ExplainerTooltip>
+            )}
           </div>
         </div>
       </div>
@@ -850,6 +880,18 @@ export function App() {
         onOpenChange={setSaveModalOpen}
         state={projectState}
       />
+
+      {isNativeDesktop && (
+        <KeyringModal
+          open={keyringModalOpen}
+          onOpenChange={setKeyringModalOpen}
+          hasKey={hasDesktopKey}
+          onSaved={() => {
+            setHasDesktopKey(true);
+            showToast('success', 'Gemini API key saved securely to your desktop keyring.');
+          }}
+        />
+      )}
     </div>
   );
 }
