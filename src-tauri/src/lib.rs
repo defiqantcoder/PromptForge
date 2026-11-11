@@ -1,52 +1,10 @@
+mod export;
 mod gemini;
-use std::collections::HashMap;
-use std::fs;
-use std::path::{Component, Path, PathBuf};
 
+use std::collections::HashMap;
 use keyring::Entry;
 use serde_json::Value;
 
-fn expand_home_prefix(trimmed: &str, home_dir: Option<&Path>) -> Result<PathBuf, String> {
-    if trimmed == "~" {
-        return home_dir
-            .map(Path::to_path_buf)
-            .ok_or_else(|| "Unable to determine user home directory for '~'.".to_string());
-    }
-    if let Some(rest) = trimmed.strip_prefix("~/") {
-        let base = home_dir
-            .ok_or_else(|| "Unable to determine user home directory for '~/'.".to_string())?;
-        return Ok(base.join(rest));
-    }
-    Ok(PathBuf::from(trimmed))
-}
-
-/// Validates and canonicalizes a target directory path, rejecting empty inputs, relative paths, and '..' traversal segments.
-fn validate_and_resolve_dir(target_dir: &str) -> Result<PathBuf, String> {
-    let trimmed = target_dir.trim();
-    if trimmed.is_empty() {
-        return Err("Target directory path cannot be empty.".to_string());
-    }
-    if trimmed.replace('\\', "/").split('/').any(|seg| seg == "..") {
-        return Err("Security Error: Directory traversal ('..') is prohibited.".to_string());
-    }
-
-    let home = std::env::var_os("HOME").map(PathBuf::from);
-    let expanded = expand_home_prefix(trimmed, home.as_deref())?;
-    if !expanded.is_absolute() {
-        return Err("Target directory path must be an absolute path or start with '~/'.".to_string());
-    }
-    for component in expanded.components() {
-        if matches!(component, Component::ParentDir) {
-            return Err("Security Error: Directory traversal ('..') is prohibited.".to_string());
-        }
-    }
-    if !expanded.exists() {
-        fs::create_dir_all(&expanded)
-            .map_err(|e| format!("Failed to create target directory: {}", e))?;
-    }
-    fs::canonicalize(&expanded)
-        .map_err(|e| format!("Failed to canonicalize path '{}': {}", target_dir, e))
-}
 
 fn validate_service_name(service: &str) -> Result<&str, String> {
     let trimmed = service.trim();
@@ -86,19 +44,7 @@ fn save_spec_bundle(
     target_dir: String,
     files: HashMap<String, String>,
 ) -> Result<bool, String> {
-    let resolved_dir = validate_and_resolve_dir(&target_dir)?;
-    let allowed_files = ["AGENTS.md", "spec.md", "plan.md", "tasks.md"];
-
-    for (filename, content) in files {
-        if !allowed_files.contains(&filename.as_str()) {
-            return Err(format!("Disallowed specification filename: {}", filename));
-        }
-        let dest = resolved_dir.join(&filename);
-        fs::write(&dest, content.as_bytes())
-            .map_err(|e| format!("Failed to write {}: {}", filename, e))?;
-    }
-
-    Ok(true)
+    export::save_spec_bundle_to_dir(target_dir, files)
 }
 
 #[tauri::command]
@@ -223,53 +169,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn rejects_empty_and_traversal_paths() {
-        assert!(validate_and_resolve_dir("").is_err());
-        assert!(validate_and_resolve_dir("   ").is_err());
-        assert!(validate_and_resolve_dir("/tmp/../etc").is_err());
-        assert!(validate_and_resolve_dir("../escape").is_err());
-    }
-
-    #[test]
-    fn save_spec_bundle_enforces_filename_allowlist_and_writes_files() {
-        let test_dir = std::env::temp_dir().join(format!(
-            "promptforge_test_{}",
-            std::process::id()
-        ));
-        let dir_str = test_dir.to_string_lossy().to_string();
-
-        let mut bad_files = HashMap::new();
-        bad_files.insert("evil.sh".to_string(), "rm -rf /".to_string());
-        assert!(save_spec_bundle(dir_str.clone(), bad_files).is_err());
-
-        let mut good_files = HashMap::new();
-        good_files.insert("AGENTS.md".to_string(), "# Agents".to_string());
-        good_files.insert("spec.md".to_string(), "# Spec".to_string());
-        assert_eq!(save_spec_bundle(dir_str, good_files), Ok(true));
-        assert_eq!(fs::read_to_string(test_dir.join("AGENTS.md")).unwrap(), "# Agents");
-        assert_eq!(fs::read_to_string(test_dir.join("spec.md")).unwrap(), "# Spec");
-
-        let _ = fs::remove_dir_all(&test_dir);
-    }
-
-    #[test]
     fn rejects_invalid_keyring_service_names() {
         assert!(validate_service_name("").is_err());
         assert!(validate_service_name("   ").is_err());
         assert!(validate_service_name("bad/service").is_err());
         assert_eq!(validate_service_name("gemini"), Ok("gemini"));
     }
-
-    #[test]
-    fn expands_home_prefix_and_rejects_relative_paths() {
-        let home = Path::new("/home/sinnoh");
-        assert_eq!(expand_home_prefix("~", Some(home)), Ok(PathBuf::from("/home/sinnoh")));
-        assert_eq!(
-            expand_home_prefix("~/Projects/specs", Some(home)),
-            Ok(PathBuf::from("/home/sinnoh/Projects/specs"))
-        );
-        assert!(expand_home_prefix("~", None).is_err());
-        assert!(validate_and_resolve_dir("relative/path").is_err());
-    }
-
 }
