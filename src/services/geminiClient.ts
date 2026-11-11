@@ -1,10 +1,13 @@
 import { invoke } from '@tauri-apps/api/core';
 import {
   ClarificationItem,
+  CodingLanguageId,
   FillableFieldId,
   GroundRules,
+  MiniGrillTopic,
   ProjectState,
   TargetPlatform,
+  UploadedIdeaImage,
 } from '../types/project';
 import { isTauriEnvironment } from './tauriBridge';
 
@@ -109,18 +112,41 @@ export async function generateRandomAppIdea(categoryHint?: string): Promise<Rand
   return postGemini<RandomIdeaResponse>('/api/gemini/random-idea', { categoryHint });
 }
 
+export function buildFullProjectContext(state: ProjectState) {
+  const stitch = state.stitchUi;
+  return {
+    appName: state.appName,
+    tagline: state.tagline,
+    coreIdea: state.coreIdea,
+    targetPlatform: state.targetPlatform,
+    codingLanguage: state.codingLanguage ?? 'auto',
+    codingLanguageNote: state.codingLanguageNote ?? '',
+    features: state.features,
+    groundRules: state.groundRules,
+    clarifications: state.clarifications,
+    proConfig: state.proConfig,
+    stitchUi: {
+      visualDirection: stitch?.visualDirection ?? '',
+      uiClarifications: stitch?.uiClarifications ?? [],
+      ideaImageNames: (stitch?.ideaImages ?? []).map((img) => img.name),
+      uploadedResultName: stitch?.uploadedResultName,
+      uploadedResultContent: stitch?.uploadedResultContent,
+      uploadedResultNotes: stitch?.uploadedResultNotes ?? '',
+    },
+    workflowProgress: state.workflowProgress ?? {
+      stitchDone: false,
+      builderDone: false,
+      polishDone: false,
+    },
+  };
+}
+
 export interface GrillMeResponse {
   questions: ClarificationItem[];
 }
 
 export async function generateGrillQuestions(state: ProjectState): Promise<GrillMeResponse> {
-  return postGemini<GrillMeResponse>('/api/gemini/grill', {
-    appName: state.appName,
-    coreIdea: state.coreIdea,
-    targetPlatform: state.targetPlatform,
-    features: state.features,
-    groundRules: state.groundRules,
-  });
+  return postGemini<GrillMeResponse>('/api/gemini/grill', buildFullProjectContext(state));
 }
 
 export interface FillFieldResponse {
@@ -134,15 +160,56 @@ export async function fillFieldWithAi(
 ): Promise<FillFieldResponse> {
   return postGemini<FillFieldResponse>('/api/gemini/fill-field', {
     field,
-    context: {
-      appName: state.appName,
-      tagline: state.tagline,
-      coreIdea: state.coreIdea,
-      targetPlatform: state.targetPlatform,
-      features: state.features,
-      groundRules: state.groundRules,
-      clarifications: state.clarifications,
-      proConfig: state.proConfig,
-    },
+    context: buildFullProjectContext(state),
+  });
+}
+
+export async function generateMiniGrillQuestions(
+  topic: MiniGrillTopic,
+  state: ProjectState,
+  images?: UploadedIdeaImage[]
+): Promise<GrillMeResponse> {
+  return postGemini<GrillMeResponse>('/api/gemini/mini-grill', {
+    topic,
+    context: buildFullProjectContext(state),
+    images: images && images.length > 0 ? images : undefined,
+  });
+}
+
+export interface StitchSurpriseResponse {
+  designConceptName: string;
+  visualDirection: string;
+  uiClarifications: ClarificationItem[];
+}
+
+export async function generateStitchSurprise(
+  state: ProjectState,
+  images?: UploadedIdeaImage[]
+): Promise<StitchSurpriseResponse> {
+  return postGemini<StitchSurpriseResponse>('/api/gemini/stitch-surprise', {
+    context: buildFullProjectContext(state),
+    images: images && images.length > 0 ? images : state.stitchUi?.ideaImages,
+  });
+}
+
+export interface LanguageComparison {
+  language: string;
+  bestFor: string;
+  whyConsiderOrSkip: string;
+}
+
+export interface LanguageAdvisorResponse {
+  recommendedId: CodingLanguageId;
+  recommendedLabel: string;
+  summary: string;
+  tradeoffs: string;
+  comparisons: LanguageComparison[];
+}
+
+export async function recommendCodingLanguage(
+  state: ProjectState
+): Promise<LanguageAdvisorResponse> {
+  return postGemini<LanguageAdvisorResponse>('/api/gemini/recommend-language', {
+    context: buildFullProjectContext(state),
   });
 }

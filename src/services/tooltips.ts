@@ -124,7 +124,7 @@ export const TOOLTIP_DICTIONARY: Record<string, TooltipEntry> = {
 
   // Deck 5: Multi-Platform Exporter
   'deck-exporter': {
-    title: '05. Multi-Platform Contract Exporter',
+    title: '06. Multi-Platform Contract Exporter',
     description: 'Formats your project into ready-to-paste prompt contracts tailored for each major AI design and coding tool.',
     aiUsage: 'Structures context, visual tokens, and acceptance criteria in the exact format each platform performs best with.',
   },
@@ -160,7 +160,142 @@ export const TOOLTIP_DICTIONARY: Record<string, TooltipEntry> = {
   },
   'action-fill-with-ai': {
     title: 'Context-Aware Fill with AI',
-    description: 'Uses what you have already written in earlier sections to draft a smart, tailored answer for this specific field.',
-    aiUsage: 'Reads your app idea, target device, steps, ground rules, and clarifications to keep every field consistent.',
+    description: 'Uses everything you have already filled across all sections to draft a smart, tailored answer for this blank.',
+    aiUsage: 'Reads your app idea, target device, coding language, feature list, ground rules, and clarifications together.',
+  },
+  'action-mini-grill': {
+    title: 'Mini Grill Me (Quick Helper Questions)',
+    description: 'Asks 1 or 2 quick multiple-choice questions right here so you can add helpful detail without guessing.',
+    aiUsage: 'Folds your chosen answer directly into this section and updates all compiled prompts automatically.',
+  },
+  'header-brand': {
+    title: 'PromptForge Workstation',
+    description: 'Your plain-English studio for turning rough app ideas into specs, UI designs, and step-by-step AI build workflows.',
+    aiUsage: 'Keeps your project organized in memory and local storage while compiling live Markdown and platform prompts.',
+  },
+  'header-nav': {
+    title: 'Quick Section Jump Bar',
+    description: 'Jump straight to any deck in the workstation—Manifest, Ground Rules, Grill Me, Pro Rules, Workflow, or Exporters.',
+    aiUsage: 'Clicking Balanced or Pro sections automatically switches your view lens without losing any entered text.',
+  },
+  'sidebar-blueprints': {
+    title: 'Most Recent 3 Blueprints',
+    description: 'Lists your 3 most recently opened or edited project blueprints so you can switch back to active ideas in one click.',
+    aiUsage: 'Restores the full ProjectState (idea, features, language, Stitch UI, and Pro rules) immediately.',
+  },
+  'sidebar-new-blank': {
+    title: 'Start a New Blank Project',
+    description: 'Clears the active fields so you can describe a brand-new app from scratch (your previous blueprint stays in Recent 3).',
+    aiUsage: 'Gives you an undo snapshot and starts a clean project canvas.',
+  },
+  'sidebar-complexity-lens': {
+    title: 'Active Complexity Lens Summary',
+    description: 'Shows which decks are currently visible or auto-managed based on whether Simple, Balanced, or Pro mode is active.',
+    aiUsage: 'Simple hides jargon; Balanced reveals rules and Grill Me; Pro exposes full AGENTS.md and token controls.',
+  },
+  'field-tagline': {
+    title: 'One-Sentence Summary (Tagline)',
+    description: 'A quick one-line elevator pitch explaining what your app does and who it is for.',
+    aiUsage: 'Placed right at the top of spec.md, AGENTS.md, and every exported platform prompt so AI tools grasp your goal fast.',
+  },
+  'field-coding-language': {
+    title: 'Coding Language & Stack Choice',
+    description: 'Pick which programming language or framework you want AI builders to use, or ask AI what is best for your app.',
+    aiUsage: 'Locks stack recommendations inside plan.md, AGENTS.md, and your guided build workflow handoffs.',
+  },
+  'field-coding-language-note': {
+    title: 'Language & Library Preferences',
+    description: 'Optional extra details about libraries, UI frameworks, or constraints you want paired with your chosen language.',
+    aiUsage: 'Appended to Section 2 (Stack) in AGENTS.md and carried into AI Studio, Antigravity, and Copilot prompts.',
+  },
+  'action-language-advisor': {
+    title: 'AI Language Advisor (What Is Best for What?)',
+    description: 'Analyzes your idea, target device, and feature list, then explains what each coding language is best for and which fits best.',
+    aiUsage: 'Compares trade-offs in plain English so beginners and pros can choose the right stack with confidence.',
+  },
+  'field-add-step': {
+    title: 'Add a Feature to the List',
+    description: 'Type a plain-English capability or user action you want your app to have, or click Fill with AI to suggest the next one.',
+    aiUsage: 'Every item here becomes an EARS requirement in spec.md and an implementation slice in tasks.md.',
+  },
+  'field-pro-stack': {
+    title: 'Preferred Tech Stack (Section 2)',
+    description: 'Exact frameworks, runtimes, and SDKs that AI coding agents should use when writing code.',
+    aiUsage: 'Directly populates Section 2 (Stack) of AGENTS.md and constrains code generation choices.',
+  },
+  'field-pro-architecture': {
+    title: 'System Architecture Pattern (Section 5)',
+    description: 'Describes how the UI, backend, and local storage communicate (for example, sandboxed UI over Tauri IPC).',
+    aiUsage: 'Guides AI agents in AGENTS.md Section 5 and plan.md so files stay cleanly separated.',
+  },
+  'field-pro-testing': {
+    title: 'Verification & Testing Rules (Section 7)',
+    description: 'Specifies what automated tests and checks must pass before an AI agent considers work complete.',
+    aiUsage: 'Written into AGENTS.md Section 7 and added as verification steps on generated tasks.',
+  },
+  'field-pro-security': {
+    title: 'Security & Filesystem Boundary (Section 8)',
+    description: 'Defines where API keys live, what paths can be written, and what inputs must be validated.',
+    aiUsage: 'Enforced in AGENTS.md Section 8 and included in every builder prompt.',
+  },
+  'field-pro-new-token': {
+    title: 'Create New {{variable}} Token',
+    description: 'Add a reusable key-value placeholder (like target_os or accent_color) that automatically fills across all exported files.',
+    aiUsage: 'Anywhere {{token_name}} appears in your specs or prompts, PromptForge substitutes this value live.',
+  },
+  'field-pro-custom-rules': {
+    title: 'Persistent AI Coding Rules (Section 6)',
+    description: 'Add custom "always do" or "never do" instructions that every AI coding assistant must follow in your repo.',
+    aiUsage: 'Rendered verbatim in Section 6 (Coding Conventions) of AGENTS.md and Copilot/Antigravity contracts.',
+  },
+  'deck-workflow': {
+    title: '05. Guided Build Workflow & Stitch UI Studio',
+    description: 'Walks you step-by-step from UI design in Google Stitch (with image ideas and UI grilling) to building the app in the next AI tool.',
+    aiUsage: 'Tracks your progress, incorporates your uploaded Stitch UI result, and hands you the exact next prompt and .md files.',
+  },
+  'stitch-ui-grill': {
+    title: 'Grill Me on UI Design',
+    description: 'Asks focused visual design questions (layout, density, mood, navigation) tailored to your app and any uploaded reference images.',
+    aiUsage: 'Folds your visual answers straight into your Google Stitch UI prompt and visual direction notes.',
+  },
+  'stitch-surprise-me': {
+    title: 'Surprise Me with a UI Idea (AI)',
+    description: 'Uses Gemini (and any reference images you uploaded) to invent a fresh visual direction, color mood, and layout concept.',
+    aiUsage: 'Fills your visual direction notes and upgrades your Google Stitch prompt automatically.',
+  },
+  'stitch-image-upload': {
+    title: 'Upload Reference Images for UI Ideas',
+    description: 'Drop screenshots, sketches, or moodboard images here so Gemini can see what look and layout style you like.',
+    aiUsage: 'Sent directly to Gemini during UI Grill Me and Surprise Me, and summarized into your Stitch design prompt.',
+  },
+  'stitch-visual-direction': {
+    title: 'Visual Direction & Layout Notes',
+    description: 'Describe the colors, layout, vibe, or screen structure you want Google Stitch to design.',
+    aiUsage: 'Injected into your Google Stitch UI prompt and downstream builder handoff contracts.',
+  },
+  'stitch-result-upload': {
+    title: 'Upload Your Google Stitch Result',
+    description: 'After running the prompt in Google Stitch, upload the exported HTML, ZIP, image screenshot, or code notes here.',
+    aiUsage: 'Unlocks the next recommended app step and weaves your finished Stitch design into the builder prompt.',
+  },
+  'workflow-next-app': {
+    title: 'Recommended Next App & Files',
+    description: 'Recommends the best next AI tool (AI Studio, Antigravity, Copilot, or Canvas) for your chosen platform and language.',
+    aiUsage: 'Packages your Stitch output, next prompt, and AGENTS.md / spec.md / plan.md / tasks.md for seamless handoff.',
+  },
+  'inspector-compiler': {
+    title: 'Live Contract Compiler',
+    description: 'Shows your real-time compiled Markdown specifications and platform prompts updating instantly on every edit.',
+    aiUsage: 'Lets you inspect and copy AGENTS.md, spec.md, plan.md, tasks.md, or platform prompts at any moment.',
+  },
+  'field-export-dir': {
+    title: 'Ubuntu Export Folder Path',
+    description: 'Choose or type the local Linux folder where AGENTS.md, spec.md, plan.md, and tasks.md will be written.',
+    aiUsage: 'Validated by Rust path canonicalization to block ../ traversal before writing any file.',
+  },
+  'action-browse-folder': {
+    title: 'Browse Ubuntu Folder',
+    description: 'Opens your native Ubuntu folder picker so you can select a destination directory visually.',
+    aiUsage: 'Passes the selected directory path directly to the safe Rust file writer.',
   },
 };

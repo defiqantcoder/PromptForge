@@ -1,12 +1,27 @@
 import React from 'react';
-import { Gauge, Lock, Moon, WifiOff, HelpCircle } from 'lucide-react';
-import { GroundRules, ProjectState } from '../types/project';
+import { Gauge, HelpCircle, Lock, Moon, WifiOff } from 'lucide-react';
+import {
+  ClarificationItem,
+  GroundRules,
+  MiniGrillTopic,
+  ProjectState,
+} from '../types/project';
 import { DeckCard } from '../components/Card';
-import { ExplainerTooltip } from '../components/Tooltip';
+import { MiniGrillButton, MiniGrillPanel } from '../components/MiniGrillSection';
+import { ExplainerTooltip, HelpBadge } from '../components/Tooltip';
 
 interface ArchitectureDeckProps {
   state: ProjectState;
   onUpdate: (updater: (prev: ProjectState) => ProjectState) => void;
+  onMiniGrill: (topic: MiniGrillTopic) => Promise<void>;
+  miniGrillLoadingTopic: MiniGrillTopic | null;
+  miniGrillQuestions: Partial<Record<MiniGrillTopic, ClarificationItem[]>>;
+  onSelectMiniGrillAnswer: (
+    topic: MiniGrillTopic,
+    questionId: string,
+    option: string
+  ) => void;
+  onDismissMiniGrill: (topic: MiniGrillTopic) => void;
 }
 
 const RULES_CONFIG: Array<{
@@ -51,7 +66,15 @@ const RULES_CONFIG: Array<{
   },
 ];
 
-export function ArchitectureDeck({ state, onUpdate }: ArchitectureDeckProps) {
+export function ArchitectureDeck({
+  state,
+  onUpdate,
+  onMiniGrill,
+  miniGrillLoadingTopic,
+  miniGrillQuestions,
+  onSelectMiniGrillAnswer,
+  onDismissMiniGrill,
+}: ArchitectureDeckProps) {
   const toggleRule = (key: keyof GroundRules) => {
     onUpdate((prev) => ({
       ...prev,
@@ -61,6 +84,22 @@ export function ArchitectureDeck({ state, onUpdate }: ArchitectureDeckProps) {
       },
       lastUpdated: new Date().toISOString(),
     }));
+  };
+
+  const applyGroundRuleMiniGrill = (q: ClarificationItem, opt: string) => {
+    const clean = opt.replace(/^\(Recommended\)\s*/i, '').trim();
+    const ruleText = `${q.category}: ${clean}`;
+    onUpdate((prev) => {
+      if (prev.proConfig.customRules.includes(ruleText)) return prev;
+      return {
+        ...prev,
+        proConfig: {
+          ...prev.proConfig,
+          customRules: [...prev.proConfig.customRules, ruleText],
+        },
+        lastUpdated: new Date().toISOString(),
+      };
+    });
   };
 
   const activeCount = Object.values(state.groundRules).filter(Boolean).length;
@@ -73,9 +112,20 @@ export function ArchitectureDeck({ state, onUpdate }: ArchitectureDeckProps) {
       subtitle="Toggle how your app should behave in the real world. Each switch automatically writes non-negotiable engineering rules into your specification."
       tooltipKey="deck-architecture"
       headerRight={
-        <span className="text-xs font-mono text-[#34D399] tabular-nums">
-          {activeCount} of 4 guardrails active
-        </span>
+        <div className="flex flex-wrap items-center gap-2.5">
+          <MiniGrillButton
+            label="Mini Grill Rules"
+            loading={miniGrillLoadingTopic === 'groundRules'}
+            disabled={
+              Boolean(miniGrillLoadingTopic) && miniGrillLoadingTopic !== 'groundRules'
+            }
+            onClick={() => void onMiniGrill('groundRules')}
+          />
+          <span className="inline-flex items-center gap-1.5 text-xs font-mono text-[#34D399] tabular-nums">
+            <span>{activeCount} of 4 guardrails active</span>
+            <HelpBadge tooltipKey="deck-architecture" />
+          </span>
+        </div>
       }
     >
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
@@ -131,6 +181,14 @@ export function ArchitectureDeck({ state, onUpdate }: ArchitectureDeckProps) {
           );
         })}
       </div>
+
+      <MiniGrillPanel
+        title="Sharpen Ground Rules"
+        questions={miniGrillQuestions.groundRules ?? []}
+        onSelectAnswer={(qId, opt) => onSelectMiniGrillAnswer('groundRules', qId, opt)}
+        onApplyToSection={applyGroundRuleMiniGrill}
+        onClose={() => onDismissMiniGrill('groundRules')}
+      />
     </DeckCard>
   );
 }

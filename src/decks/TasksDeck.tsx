@@ -1,16 +1,32 @@
 import React, { useState } from 'react';
-import { Plus, Trash2, Bot, UserCheck, Workflow } from 'lucide-react';
-import { FillableFieldId, ProjectState, TaskSlicingMode } from '../types/project';
+import { Bot, Plus, Trash2, UserCheck, Workflow } from 'lucide-react';
+import {
+  ClarificationItem,
+  FillableFieldId,
+  MiniGrillTopic,
+  ProjectState,
+  TaskSlicingMode,
+} from '../types/project';
 import { FillFieldResponse } from '../services/geminiClient';
 import { DeckCard } from '../components/Card';
 import { FillWithAiButton } from '../components/FillWithAiButton';
-import { LabelWithTooltip } from '../components/Tooltip';
+import { MiniGrillButton, MiniGrillPanel } from '../components/MiniGrillSection';
+import { HelpBadge, LabelWithTooltip } from '../components/Tooltip';
 
 interface TasksDeckProps {
   state: ProjectState;
   onUpdate: (updater: (prev: ProjectState) => ProjectState) => void;
   onFillField: (field: FillableFieldId) => Promise<FillFieldResponse | null>;
   fillingField: FillableFieldId | null;
+  onMiniGrill: (topic: MiniGrillTopic) => Promise<void>;
+  miniGrillLoadingTopic: MiniGrillTopic | null;
+  miniGrillQuestions: Partial<Record<MiniGrillTopic, ClarificationItem[]>>;
+  onSelectMiniGrillAnswer: (
+    topic: MiniGrillTopic,
+    questionId: string,
+    option: string
+  ) => void;
+  onDismissMiniGrill: (topic: MiniGrillTopic) => void;
 }
 
 const SLICING_MODES: Array<{
@@ -42,14 +58,41 @@ const SLICING_MODES: Array<{
 const PRO_FIELDS: Array<{
   field: 'stackSummary' | 'architectureStyle' | 'testingStrategy' | 'securityBoundary';
   label: string;
+  tooltipKey: string;
 }> = [
-  { field: 'stackSummary', label: 'Preferred Tech Stack Summary (Section 2: Stack)' },
-  { field: 'architectureStyle', label: 'System Architecture Pattern (Section 5: Architecture)' },
-  { field: 'testingStrategy', label: 'Verification & Testing Rules (Section 7: Testing)' },
-  { field: 'securityBoundary', label: 'Security & Filesystem Boundary (Section 8: Security)' },
+  {
+    field: 'stackSummary',
+    label: 'Preferred Tech Stack Summary (Section 2: Stack)',
+    tooltipKey: 'field-pro-stack',
+  },
+  {
+    field: 'architectureStyle',
+    label: 'System Architecture Pattern (Section 5: Architecture)',
+    tooltipKey: 'field-pro-architecture',
+  },
+  {
+    field: 'testingStrategy',
+    label: 'Verification & Testing Rules (Section 7: Testing)',
+    tooltipKey: 'field-pro-testing',
+  },
+  {
+    field: 'securityBoundary',
+    label: 'Security & Filesystem Boundary (Section 8: Security)',
+    tooltipKey: 'field-pro-security',
+  },
 ];
 
-export function TasksDeck({ state, onUpdate, onFillField, fillingField }: TasksDeckProps) {
+export function TasksDeck({
+  state,
+  onUpdate,
+  onFillField,
+  fillingField,
+  onMiniGrill,
+  miniGrillLoadingTopic,
+  miniGrillQuestions,
+  onSelectMiniGrillAnswer,
+  onDismissMiniGrill,
+}: TasksDeckProps) {
   const [newRule, setNewRule] = useState('');
   const [newVarKey, setNewVarKey] = useState('');
   const [newVarVal, setNewVarVal] = useState('');
@@ -127,6 +170,22 @@ export function TasksDeck({ state, onUpdate, onFillField, fillingField }: TasksD
     }
   };
 
+  const applyProMiniGrill = (q: ClarificationItem, opt: string) => {
+    const clean = opt.replace(/^\(Recommended\)\s*/i, '').trim();
+    const ruleText = `${q.category}: ${clean}`;
+    onUpdate((prev) => {
+      if (prev.proConfig.customRules.includes(ruleText)) return prev;
+      return {
+        ...prev,
+        proConfig: {
+          ...prev.proConfig,
+          customRules: [...prev.proConfig.customRules, ruleText],
+        },
+        lastUpdated: new Date().toISOString(),
+      };
+    });
+  };
+
   return (
     <DeckCard
       id="deck-tasks"
@@ -134,8 +193,24 @@ export function TasksDeck({ state, onUpdate, onFillField, fillingField }: TasksD
       title="Pro Architect Controls, Task Slicing & AGENTS.md Sections"
       subtitle="Fine-tune how autonomous coding agents slice tasks (HITL vs AFK), customize the 10-section AGENTS.md contract, and manage dynamic {{variable}} tokens."
       tooltipKey="deck-tasks"
+      headerRight={
+        <MiniGrillButton
+          label="Mini Grill Architecture"
+          loading={miniGrillLoadingTopic === 'proArch'}
+          disabled={Boolean(miniGrillLoadingTopic) && miniGrillLoadingTopic !== 'proArch'}
+          onClick={() => void onMiniGrill('proArch')}
+        />
+      }
     >
       <div className="space-y-6">
+        <MiniGrillPanel
+          title="Sharpen Architecture & Conventions"
+          questions={miniGrillQuestions.proArch ?? []}
+          onSelectAnswer={(qId, opt) => onSelectMiniGrillAnswer('proArch', qId, opt)}
+          onApplyToSection={applyProMiniGrill}
+          onClose={() => onDismissMiniGrill('proArch')}
+        />
+
         {/* Task Slicing Strategy */}
         <div className="space-y-2.5">
           <LabelWithTooltip
@@ -181,13 +256,18 @@ export function TasksDeck({ state, onUpdate, onFillField, fillingField }: TasksD
           </div>
         </div>
 
-        {/* 10-Section AGENTS.md Core Overrides (Plain-English Labels) */}
+        {/* 10-Section AGENTS.md Core Overrides */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {PRO_FIELDS.map(({ field, label }) => (
+          {PRO_FIELDS.map(({ field, label, tooltipKey }) => (
             <div key={field} className="space-y-1.5">
-              <label className="block text-xs font-semibold text-white">{label}</label>
+              <LabelWithTooltip
+                label={label}
+                tooltipKey={tooltipKey}
+                htmlFor={`pro-field-${field}`}
+              />
               <div className="flex items-center gap-2">
                 <input
+                  id={`pro-field-${field}`}
                   type="text"
                   value={state.proConfig[field]}
                   onChange={(e) => updateProField(field, e.target.value)}
@@ -256,6 +336,7 @@ export function TasksDeck({ state, onUpdate, onFillField, fillingField }: TasksD
               placeholder="Token value..."
               className="flex-1 min-w-[160px] px-3 py-1.5 rounded-lg bg-[#0F0C1B]/90 border border-[#C084FC]/25 text-xs text-white focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]"
             />
+            <HelpBadge tooltipKey="field-pro-new-token" />
             <FillWithAiButton
               fieldLabel="Dynamic Token"
               loading={fillingField === 'templateVariable'}
@@ -275,9 +356,10 @@ export function TasksDeck({ state, onUpdate, onFillField, fillingField }: TasksD
 
         {/* Custom Coding & Product Conventions */}
         <div className="space-y-2">
-          <label className="block text-xs font-semibold text-white">
-            Persistent AI Coding Rules (Section 6: Coding Conventions)
-          </label>
+          <LabelWithTooltip
+            label="Persistent AI Coding Rules (Section 6: Coding Conventions)"
+            tooltipKey="field-pro-custom-rules"
+          />
           <div className="space-y-1.5">
             {state.proConfig.customRules.map((rule, idx) => (
               <div

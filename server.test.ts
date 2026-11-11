@@ -102,3 +102,83 @@ test('Gemini routes share key checks, cancel deadlines, and keep provider errors
     await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
   }
 });
+
+test('Extended Gemini endpoints accept unlimited text and multimodal images', async () => {
+  const originalEnv = { key: process.env.GEMINI_API_KEY, mode: process.env.NODE_ENV };
+  process.env.NODE_ENV = 'production';
+  process.env.GEMINI_API_KEY = 'synthetic-extended-key';
+  const app = await createApp();
+  const server = app.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  const address = server.address();
+  assert.ok(address && typeof address !== 'string');
+  const base = `http://127.0.0.1:${address.port}`;
+  const clientFetch = globalThis.fetch;
+  const capturedBodies: unknown[] = [];
+
+  globalThis.fetch = (async (_input, init) => {
+    if (typeof init?.body === 'string') {
+      capturedBodies.push(JSON.parse(init.body));
+    }
+    return new Response(
+      JSON.stringify({
+        candidates: [{ content: { parts: [{ text: JSON.stringify({ value: 'ok', questions: [] }) }] } }],
+      }),
+      { status: 200 }
+    );
+  }) as typeof fetch;
+
+  try {
+    const longIdea = 'a'.repeat(25_000);
+    const expandResp = await clientFetch(`${base}/api/gemini/expand`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ coreIdea: longIdea, features: ['Step 1', 'Step 2'] }),
+    });
+    assert.equal(expandResp.status, 200);
+
+    const fillResp = await clientFetch(`${base}/api/gemini/fill-field`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        field: 'codingLanguageNote',
+        context: { appName: 'PulseVault', codingLanguage: 'rust-tauri', coreIdea: longIdea },
+      }),
+    });
+    assert.equal(fillResp.status, 200);
+
+    const miniResp = await clientFetch(`${base}/api/gemini/mini-grill`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        topic: 'stitchUi',
+        context: { appName: 'PulseVault' },
+        images: [{ id: 'img1', name: 'ref.png', mimeType: 'image/png', dataUrl: 'data:image/png;base64,iVBORw0KGgo=' }],
+      }),
+    });
+    assert.equal(miniResp.status, 200);
+    const lastCaptured = capturedBodies[capturedBodies.length - 1] as any;
+    assert.equal(lastCaptured.contents[0].parts[1].inlineData.mimeType, 'image/png');
+
+    const surpriseResp = await clientFetch(`${base}/api/gemini/stitch-surprise`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ context: { appName: 'PulseVault' } }),
+    });
+    assert.equal(surpriseResp.status, 200);
+
+    const advisorResp = await clientFetch(`${base}/api/gemini/recommend-language`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ context: { appName: 'PulseVault', targetPlatform: 'desktop' } }),
+    });
+    assert.equal(advisorResp.status, 200);
+  } finally {
+    globalThis.fetch = clientFetch;
+    if (originalEnv.key === undefined) delete process.env.GEMINI_API_KEY;
+    else process.env.GEMINI_API_KEY = originalEnv.key;
+    if (originalEnv.mode === undefined) delete process.env.NODE_ENV;
+    else process.env.NODE_ENV = originalEnv.mode;
+    await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+  }
+});

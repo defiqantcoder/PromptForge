@@ -89,3 +89,29 @@ export function LabelWithTooltip({
     </ExplainerTooltip>
   );
 }
+
+interface HelpBadgeProps {
+  tooltipKey: string;
+  label?: string;
+  side?: 'top' | 'right' | 'bottom' | 'left';
+  align?: 'start' | 'center' | 'end';
+}
+
+export function HelpBadge({
+  tooltipKey,
+  label = 'Show plain-English help',
+  side = 'top',
+  align = 'center',
+}: HelpBadgeProps) {
+  return (
+    <ExplainerTooltip tooltipKey={tooltipKey} side={side} align={align}>
+      <button
+        type="button"
+        aria-label={label}
+        className="inline-flex items-center justify-center w-4 h-4 rounded-full text-[#A78BFA]/80 hover:text-[#D0BCFF] hover:bg-[#8B5CF6]/20 transition-colors cursor-help shrink-0 focus:outline-none focus:ring-1 focus:ring-[#8B5CF6]"
+      >
+        <HelpCircle className="w-3.5 h-3.5" />
+      </button>
+    </ExplainerTooltip>
+  );
+}

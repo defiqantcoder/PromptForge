@@ -37,4 +37,34 @@ test('presets test suite', async (t) => {
       assert.ok(idea.coreIdea.length > 0);
     });
   });
+
+  await t.test('CODING_LANGUAGES and recent 3 blueprints helpers', async () => {
+    const {
+      CODING_LANGUAGES,
+      MAX_RECENT_BLUEPRINTS,
+      createInitialRecentBlueprints,
+      upsertRecentBlueprint,
+    } = await import('../src/services/presets.ts');
+
+    assert.equal(MAX_RECENT_BLUEPRINTS, 3);
+    assert.ok(CODING_LANGUAGES.length >= 8);
+    CODING_LANGUAGES.forEach((lang) => {
+      assert.ok(lang.bestFor.length > 0);
+      assert.ok(lang.tradeoffs.length > 0);
+    });
+
+    const initial = createInitialRecentBlueprints();
+    assert.equal(initial.length, 3);
+
+    const customProject = {
+      ...DEFAULT_PROJECT_STATE,
+      id: 'custom-recent-99',
+      appName: 'BrandNewStudio',
+      lastUpdated: new Date().toISOString(),
+    };
+    const updated = upsertRecentBlueprint(initial, customProject);
+    assert.equal(updated.length, 3);
+    assert.equal(updated[0].id, 'custom-recent-99');
+    assert.equal(updated[0].name, 'BrandNewStudio');
+  });
 });

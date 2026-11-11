@@ -1,4 +1,10 @@
-import { ProjectState, StarterTemplate } from '../types/project';
+import {
+  CodingLanguageId,
+  ProjectState,
+  RecentBlueprintItem,
+  StarterTemplate,
+  StitchUiConfig,
+} from '../types/project';
 
 export const DEFAULT_PROJECT_STATE: ProjectState = {
   id: 'promptforge-workstation',
@@ -420,3 +426,135 @@ export const FALLBACK_RANDOM_IDEAS: Array<Omit<ProjectState, 'id' | 'lastUpdated
     },
   },
 ];
+
+export const DEFAULT_STITCH_UI: StitchUiConfig = {
+  visualDirection:
+    'Deep twilight glassmorphic workstation (#0F0C1B canvas, frosted #1B152E cards, crisp 1px lilac borders, electric violet #8B5CF6 actions, mint #34D399 status badges).',
+  uiClarifications: [],
+  ideaImages: [],
+  uploadedResultName: undefined,
+  uploadedResultContent: undefined,
+  uploadedResultNotes: '',
+};
+
+export interface CodingLanguageOption {
+  id: CodingLanguageId;
+  label: string;
+  shortTag: string;
+  bestFor: string;
+  tradeoffs: string;
+}
+
+export const CODING_LANGUAGES: CodingLanguageOption[] = [
+  {
+    id: 'auto',
+    label: 'Let AI Recommend',
+    shortTag: 'Smart Match',
+    bestFor: 'Beginners or builders who want PromptForge & AI to choose the ideal stack for their idea.',
+    tradeoffs: 'AI selects the cleanest fit based on your platform, offline rules, and feature list.',
+  },
+  {
+    id: 'typescript-react',
+    label: 'TypeScript + React',
+    shortTag: 'Web & UI',
+    bestFor: 'Interactive web apps, dashboards, Chrome extensions, and rapid AI Studio / Stitch UI builds.',
+    tradeoffs: 'Fastest iteration with huge AI ecosystem; pairs with Electron/Tauri for desktop.',
+  },
+  {
+    id: 'rust-tauri',
+    label: 'Rust + Tauri v2',
+    shortTag: 'Native Desktop',
+    bestFor: 'Lightweight, fast, secure Ubuntu/Windows/macOS desktop apps with OS keyring & local disk access.',
+    tradeoffs: 'Smallest installers and strong safety; slightly slower Rust compile times.',
+  },
+  {
+    id: 'python',
+    label: 'Python',
+    shortTag: 'AI & Automation',
+    bestFor: 'AI/LLM pipelines, data processing, research scripts, FastAPI backends, and quick automations.',
+    tradeoffs: 'Easiest to read and rich in AI libraries; less suited for polished mobile/desktop UIs alone.',
+  },
+  {
+    id: 'dart-flutter',
+    label: 'Dart + Flutter',
+    shortTag: 'Cross-Platform Mobile',
+    bestFor: 'Building a single codebase for iOS, Android, and desktop with smooth custom 60fps UI.',
+    tradeoffs: 'Great cross-platform visuals; larger app bundle size than native.',
+  },
+  {
+    id: 'kotlin-android',
+    label: 'Kotlin (Jetpack Compose)',
+    shortTag: 'Native Android',
+    bestFor: 'Deep Android hardware/OS integrations, widgets, background services, and Google Play apps.',
+    tradeoffs: 'Best native Android UX; Android-only unless using Kotlin Multiplatform.',
+  },
+  {
+    id: 'swift-ios',
+    label: 'Swift + SwiftUI',
+    shortTag: 'Native Apple',
+    bestFor: 'iPhone, iPad, and macOS native apps needing Apple ecosystem APIs and smooth animations.',
+    tradeoffs: 'Requires macOS/Xcode for final builds; Apple platforms only.',
+  },
+  {
+    id: 'go',
+    label: 'Go (Golang)',
+    shortTag: 'CLI & Services',
+    bestFor: 'Single-binary CLI tools, high-concurrency APIs, devops utilities, and local background servers.',
+    tradeoffs: 'Blazingly fast builds and tiny binaries; not designed for rich GUI frontends.',
+  },
+  {
+    id: 'csharp-dotnet',
+    label: 'C# / .NET',
+    shortTag: 'Windows & Enterprise',
+    bestFor: 'Windows desktop apps, Unity games, and enterprise backend APIs.',
+    tradeoffs: 'Mature tooling and strong typing; heavier runtime on Linux desktop compared to Go/Rust.',
+  },
+];
+
+export const MAX_RECENT_BLUEPRINTS = 3;
+
+export function createInitialRecentBlueprints(): RecentBlueprintItem[] {
+  const now = new Date().toISOString();
+  return STARTER_TEMPLATES.slice(0, MAX_RECENT_BLUEPRINTS).map((tpl) => ({
+    id: tpl.id,
+    name: tpl.name,
+    badge: tpl.badge,
+    summary: tpl.summary,
+    savedAt: now,
+    state: {
+      ...tpl.state,
+      codingLanguage: tpl.state.codingLanguage ?? 'typescript-react',
+      stitchUi: tpl.state.stitchUi ?? DEFAULT_STITCH_UI,
+      lastUpdated: now,
+    },
+  }));
+}
+
+export function upsertRecentBlueprint(
+  existing: RecentBlueprintItem[],
+  project: ProjectState
+): RecentBlueprintItem[] {
+  const cleanName = project.appName.trim() || 'Untitled App';
+  const cleanSummary =
+    project.tagline.trim() ||
+    project.coreIdea.trim().split('\n')[0] ||
+    'Custom application blueprint';
+  const badgeMap: Record<ProjectState['targetPlatform'], string> = {
+    desktop: 'Ubuntu Desktop',
+    web: 'Web App',
+    mobile: 'Mobile App',
+    cli: 'CLI Tool',
+  };
+
+  const entry: RecentBlueprintItem = {
+    id: project.id,
+    name: cleanName,
+    badge: badgeMap[project.targetPlatform] || 'Blueprint',
+    summary: cleanSummary,
+    savedAt: project.lastUpdated || new Date().toISOString(),
+    state: project,
+  };
+
+  const filtered = existing.filter((item) => item.id !== project.id);
+  return [entry, ...filtered].slice(0, MAX_RECENT_BLUEPRINTS);
+}

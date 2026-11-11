@@ -2,6 +2,17 @@ export type ComplexityMode = 'simple' | 'balanced' | 'pro';
 
 export type TargetPlatform = 'desktop' | 'web' | 'mobile' | 'cli';
 
+export type CodingLanguageId =
+  | 'auto'
+  | 'typescript-react'
+  | 'rust-tauri'
+  | 'python'
+  | 'dart-flutter'
+  | 'kotlin-android'
+  | 'swift-ios'
+  | 'go'
+  | 'csharp-dotnet';
+
 export type TaskSlicingMode = 'hitl-first' | 'balanced-slices' | 'afk-autonomous';
 
 export type ExportPlatformId =
@@ -18,12 +29,23 @@ export type FillableFieldId =
   | 'tagline'
   | 'coreIdea'
   | 'nextStep'
+  | 'codingLanguageNote'
   | 'stackSummary'
   | 'architectureStyle'
   | 'testingStrategy'
   | 'securityBoundary'
   | 'templateVariable'
-  | 'customRule';
+  | 'customRule'
+  | 'stitchVisualDirection'
+  | 'uploadedResultNotes';
+
+export type MiniGrillTopic =
+  | 'idea'
+  | 'features'
+  | 'groundRules'
+  | 'codingLanguage'
+  | 'proArch'
+  | 'stitchUi';
 
 export interface GroundRules {
   offlineFirst: boolean;
@@ -38,6 +60,28 @@ export interface ClarificationItem {
   question: string;
   options: string[];
   selectedAnswer?: string;
+}
+
+export interface UploadedIdeaImage {
+  id: string;
+  name: string;
+  mimeType: string;
+  dataUrl: string;
+}
+
+export interface StitchUiConfig {
+  visualDirection: string;
+  uiClarifications: ClarificationItem[];
+  ideaImages: UploadedIdeaImage[];
+  uploadedResultName?: string;
+  uploadedResultContent?: string;
+  uploadedResultNotes?: string;
+}
+
+export interface WorkflowProgress {
+  stitchDone: boolean;
+  builderDone: boolean;
+  polishDone: boolean;
 }
 
 export interface ProConfiguration {
@@ -56,9 +100,13 @@ export interface ProjectState {
   tagline: string;
   coreIdea: string;
   targetPlatform: TargetPlatform;
+  codingLanguage?: CodingLanguageId;
+  codingLanguageNote?: string;
   features: string[];
   groundRules: GroundRules;
   clarifications: ClarificationItem[];
+  stitchUi?: StitchUiConfig;
+  workflowProgress?: WorkflowProgress;
   proConfig: ProConfiguration;
   lastUpdated: string;
 }
@@ -69,6 +117,15 @@ export interface StarterTemplate {
   badge: string;
   summary: string;
   state: Omit<ProjectState, 'lastUpdated'>;
+}
+
+export interface RecentBlueprintItem {
+  id: string;
+  name: string;
+  badge: string;
+  summary: string;
+  savedAt: string;
+  state: ProjectState;
 }
 
 export interface SaveBundleResult {

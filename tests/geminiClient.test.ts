@@ -91,10 +91,18 @@ test('geminiClient routes through Express fetch in browser mode and Tauri IPC in
     const nativeGrill = await generateGrillQuestions(DEFAULT_PROJECT_STATE);
     assert.deepEqual(nativeGrill, { questions: [] });
 
-    const { fillFieldWithAi } = await import('../src/services/geminiClient.ts');
+    const {
+      fillFieldWithAi,
+      generateMiniGrillQuestions,
+      generateStitchSurprise,
+      recommendCodingLanguage,
+    } = await import('../src/services/geminiClient.ts');
     await fillFieldWithAi('tagline', DEFAULT_PROJECT_STATE);
+    await generateMiniGrillQuestions('stitchUi', DEFAULT_PROJECT_STATE);
+    await generateStitchSurprise(DEFAULT_PROJECT_STATE);
+    await recommendCodingLanguage(DEFAULT_PROJECT_STATE);
 
-    assert.equal(invokedCalls.length, 3);
+    assert.equal(invokedCalls.length, 6);
     assert.equal(invokedCalls[0].cmd, 'gemini_proxy_request');
     assert.equal((invokedCalls[0].args as any).endpoint, '/api/gemini/random-idea');
     assert.equal(invokedCalls[1].cmd, 'gemini_proxy_request');
@@ -103,6 +111,14 @@ test('geminiClient routes through Express fetch in browser mode and Tauri IPC in
     assert.equal((invokedCalls[2].args as any).endpoint, '/api/gemini/fill-field');
     assert.equal((invokedCalls[2].args as any).payload.field, 'tagline');
     assert.equal((invokedCalls[2].args as any).payload.context.appName, DEFAULT_PROJECT_STATE.appName);
+    assert.equal(
+      (invokedCalls[2].args as any).payload.context.codingLanguage,
+      DEFAULT_PROJECT_STATE.codingLanguage ?? 'auto'
+    );
+    assert.equal((invokedCalls[3].args as any).endpoint, '/api/gemini/mini-grill');
+    assert.equal((invokedCalls[3].args as any).payload.topic, 'stitchUi');
+    assert.equal((invokedCalls[4].args as any).endpoint, '/api/gemini/stitch-surprise');
+    assert.equal((invokedCalls[5].args as any).endpoint, '/api/gemini/recommend-language');
   } finally {
     if (originalWindow === undefined) {
       delete (globalThis as any).window;

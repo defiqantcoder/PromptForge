@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { HardDrive, Sparkles } from 'lucide-react';
 import { ExportPlatformId, ProjectState } from '../types/project';
 import { DeckCard } from '../components/Card';
-import { ExplainerTooltip } from '../components/Tooltip';
+import { ExplainerTooltip, HelpBadge } from '../components/Tooltip';
 import { compilePlatformContract } from '../services/compiler';
 import { CodeViewer } from '../components/CodeViewer';
 
@@ -36,21 +36,24 @@ export function ExporterDeck({
   return (
     <DeckCard
       id="deck-exporter"
-      stepNumber="05."
+      stepNumber="06."
       title="Targeted Multi-Platform Contract Exporter"
       subtitle="Select your target AI platform to generate a ready-to-paste prompt contract, or write spec.md, plan.md, tasks.md, and AGENTS.md directly to your computer."
       tooltipKey="deck-exporter"
       headerRight={
-        <ExplainerTooltip tooltipKey="action-save-computer" side="top">
-          <button
-            type="button"
-            onClick={onOpenSaveModal}
-            className="pf-btn-primary inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs font-semibold whitespace-nowrap shrink-0 cursor-pointer"
-          >
-            <HardDrive className="w-3.5 h-3.5" />
-            <span>Save Bundle to Computer</span>
-          </button>
-        </ExplainerTooltip>
+        <span className="inline-flex items-center gap-1.5">
+          <ExplainerTooltip tooltipKey="action-save-computer" side="top">
+            <button
+              type="button"
+              onClick={onOpenSaveModal}
+              className="pf-btn-primary inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs font-semibold whitespace-nowrap shrink-0 cursor-pointer"
+            >
+              <HardDrive className="w-3.5 h-3.5" />
+              <span>Save Bundle to Computer</span>
+            </button>
+          </ExplainerTooltip>
+          <HelpBadge tooltipKey="action-save-computer" side="top" />
+        </span>
       }
     >
       <div className="space-y-4">

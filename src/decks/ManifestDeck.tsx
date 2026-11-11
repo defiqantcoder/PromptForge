@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import {
+  CheckCircle2,
+  Code2,
   Globe,
-  Laptop,
   Loader2,
   Monitor,
   Plus,
@@ -12,11 +13,20 @@ import {
   Trash2,
   Wand2,
 } from 'lucide-react';
-import { FillableFieldId, ProjectState, TargetPlatform } from '../types/project';
-import { FillFieldResponse } from '../services/geminiClient';
+import {
+  ClarificationItem,
+  CodingLanguageId,
+  FillableFieldId,
+  MiniGrillTopic,
+  ProjectState,
+  TargetPlatform,
+} from '../types/project';
+import { CODING_LANGUAGES } from '../services/presets';
+import { FillFieldResponse, LanguageAdvisorResponse } from '../services/geminiClient';
 import { DeckCard } from '../components/Card';
 import { FillWithAiButton } from '../components/FillWithAiButton';
-import { ExplainerTooltip, LabelWithTooltip } from '../components/Tooltip';
+import { MiniGrillButton, MiniGrillPanel } from '../components/MiniGrillSection';
+import { ExplainerTooltip, HelpBadge, LabelWithTooltip } from '../components/Tooltip';
 
 interface ManifestDeckProps {
   state: ProjectState;
@@ -29,6 +39,18 @@ interface ManifestDeckProps {
   isGeneratingRandom: boolean;
   canUndoExpansion: boolean;
   onUndoExpansion: () => void;
+  onMiniGrill: (topic: MiniGrillTopic) => Promise<void>;
+  miniGrillLoadingTopic: MiniGrillTopic | null;
+  miniGrillQuestions: Partial<Record<MiniGrillTopic, ClarificationItem[]>>;
+  onSelectMiniGrillAnswer: (
+    topic: MiniGrillTopic,
+    questionId: string,
+    option: string
+  ) => void;
+  onDismissMiniGrill: (topic: MiniGrillTopic) => void;
+  onRecommendLanguage: () => Promise<void>;
+  isRecommendingLanguage: boolean;
+  languageAdvice: LanguageAdvisorResponse | null;
 }
 
 const PLATFORMS: Array<{
@@ -74,6 +96,14 @@ export function ManifestDeck({
   isGeneratingRandom,
   canUndoExpansion,
   onUndoExpansion,
+  onMiniGrill,
+  miniGrillLoadingTopic,
+  miniGrillQuestions,
+  onSelectMiniGrillAnswer,
+  onDismissMiniGrill,
+  onRecommendLanguage,
+  isRecommendingLanguage,
+  languageAdvice,
 }: ManifestDeckProps) {
   const [newStepText, setNewStepText] = useState('');
 
@@ -115,17 +145,66 @@ export function ManifestDeck({
     });
   };
 
-  const anyAiBusy = Boolean(fillingField) || isExpanding || isGeneratingRandom;
+  const cleanChoice = (opt: string) => opt.replace(/^\(Recommended\)\s*/i, '').trim();
+
+  const applyIdeaMiniGrill = (q: ClarificationItem, opt: string) => {
+    const detail = `${q.category}: ${cleanChoice(opt)}`;
+    onUpdate((prev) => {
+      if (prev.coreIdea.includes(detail)) return prev;
+      const sep = prev.coreIdea.trim() ? '\n\n' : '';
+      return {
+        ...prev,
+        coreIdea: `${prev.coreIdea.trim()}${sep}${detail}.`,
+        lastUpdated: new Date().toISOString(),
+      };
+    });
+  };
+
+  const applyFeatureMiniGrill = (q: ClarificationItem, opt: string) => {
+    const featureEntry = `${q.category}: ${cleanChoice(opt)}`;
+    onUpdate((prev) => {
+      if (prev.features.some((f) => f === featureEntry)) return prev;
+      return {
+        ...prev,
+        features: [...prev.features, featureEntry],
+        lastUpdated: new Date().toISOString(),
+      };
+    });
+  };
+
+  const applyLanguageMiniGrill = (q: ClarificationItem, opt: string) => {
+    const noteEntry = `${q.category}: ${cleanChoice(opt)}`;
+    onUpdate((prev) => {
+      const existingNote = prev.codingLanguageNote ?? '';
+      if (existingNote.includes(noteEntry)) return prev;
+      const sep = existingNote.trim() ? ' • ' : '';
+      return {
+        ...prev,
+        codingLanguageNote: `${existingNote.trim()}${sep}${noteEntry}`,
+        lastUpdated: new Date().toISOString(),
+      };
+    });
+  };
+
+  const anyAiBusy =
+    Boolean(fillingField) ||
+    isExpanding ||
+    isGeneratingRandom ||
+    Boolean(miniGrillLoadingTopic) ||
+    isRecommendingLanguage;
+
+  const selectedLanguageMeta =
+    CODING_LANGUAGES.find((lang) => lang.id === state.codingLanguage) ?? CODING_LANGUAGES[0];
 
   return (
     <DeckCard
       id="deck-manifest"
       stepNumber="01."
       title="Project Manifest & Plain-Language Idea"
-      subtitle="Answer three everyday questions—your big idea, the target device, and the main user steps. PromptForge handles the engineering translation."
+      subtitle="Answer four everyday questions—your big idea, target device, feature list, and coding language. PromptForge translates everything automatically."
       tooltipKey="deck-manifest"
       headerRight={
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {canUndoExpansion && (
             <button
               type="button"
@@ -137,37 +216,43 @@ export function ManifestDeck({
             </button>
           )}
 
-          <ExplainerTooltip tooltipKey="action-random-ai" side="bottom">
-            <button
-              type="button"
-              onClick={onRandomAiIdea}
-              disabled={isGeneratingRandom || isExpanding}
-              className="pf-btn-secondary inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-50"
-            >
-              {isGeneratingRandom ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin text-[#EC4899]" />
-              ) : (
-                <Wand2 className="w-3.5 h-3.5 text-[#EC4899]" />
-              )}
-              <span>{isGeneratingRandom ? 'Inventing Idea...' : 'Random AI Idea'}</span>
-            </button>
-          </ExplainerTooltip>
+          <span className="inline-flex items-center gap-1">
+            <ExplainerTooltip tooltipKey="action-random-ai" side="bottom">
+              <button
+                type="button"
+                onClick={onRandomAiIdea}
+                disabled={isGeneratingRandom || isExpanding}
+                className="pf-btn-secondary inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-50"
+              >
+                {isGeneratingRandom ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-[#EC4899]" />
+                ) : (
+                  <Wand2 className="w-3.5 h-3.5 text-[#EC4899]" />
+                )}
+                <span>{isGeneratingRandom ? 'Inventing Idea...' : 'Random AI Idea'}</span>
+              </button>
+            </ExplainerTooltip>
+            <HelpBadge tooltipKey="action-random-ai" side="bottom" />
+          </span>
 
-          <ExplainerTooltip tooltipKey="action-flesh-out" side="bottom">
-            <button
-              type="button"
-              onClick={onFleshOutIdea}
-              disabled={isExpanding || isGeneratingRandom}
-              className="pf-btn-primary inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-50"
-            >
-              {isExpanding ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              ) : (
-                <Sparkles className="w-3.5 h-3.5" />
-              )}
-              <span>{isExpanding ? 'Fleshing Out...' : 'Flesh Out My Idea'}</span>
-            </button>
-          </ExplainerTooltip>
+          <span className="inline-flex items-center gap-1">
+            <ExplainerTooltip tooltipKey="action-flesh-out" side="bottom">
+              <button
+                type="button"
+                onClick={onFleshOutIdea}
+                disabled={isExpanding || isGeneratingRandom}
+                className="pf-btn-primary inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-50"
+              >
+                {isExpanding ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Sparkles className="w-3.5 h-3.5" />
+                )}
+                <span>{isExpanding ? 'Fleshing Out...' : 'Flesh Out My Idea'}</span>
+              </button>
+            </ExplainerTooltip>
+            <HelpBadge tooltipKey="action-flesh-out" side="bottom" />
+          </span>
         </div>
       }
     >
@@ -207,7 +292,7 @@ export function ManifestDeck({
           <div className="md:col-span-7 space-y-1.5">
             <LabelWithTooltip
               label="One-Sentence Summary"
-              tooltipKey="field-app-name"
+              tooltipKey="field-tagline"
               htmlFor="input-tagline"
             />
             <div className="flex items-center gap-2">
@@ -244,10 +329,16 @@ export function ManifestDeck({
               tooltipKey="field-core-idea"
               htmlFor="textarea-core-idea"
             />
-            <div className="flex items-center gap-2.5">
+            <div className="flex flex-wrap items-center gap-2">
               <span className="text-[11px] font-mono text-[#A78BFA] tabular-nums">
-                {state.coreIdea.length} chars
+                {state.coreIdea.length} chars (unlimited)
               </span>
+              <MiniGrillButton
+                label="Mini Grill Idea"
+                loading={miniGrillLoadingTopic === 'idea'}
+                disabled={anyAiBusy && miniGrillLoadingTopic !== 'idea'}
+                onClick={() => void onMiniGrill('idea')}
+              />
               <FillWithAiButton
                 fieldLabel="Big Idea"
                 loading={fillingField === 'coreIdea'}
@@ -269,10 +360,18 @@ export function ManifestDeck({
                   lastUpdated: new Date().toISOString(),
                 }))
               }
-              placeholder="Describe your app idea in plain, everyday words. Who is it for, what problem does it solve, and how should it feel?"
+              placeholder="Write as much detail as you want in plain, everyday words. Who is it for, what problem does it solve, and how should it feel?"
               className="w-full p-4 bg-transparent text-sm leading-relaxed text-[#E9D5FF] placeholder-[#958EA0]/60 focus:outline-none resize-y rounded-2xl"
             />
           </div>
+
+          <MiniGrillPanel
+            title="Sharpen Big Idea"
+            questions={miniGrillQuestions.idea ?? []}
+            onSelectAnswer={(qId, opt) => onSelectMiniGrillAnswer('idea', qId, opt)}
+            onApplyToSection={applyIdeaMiniGrill}
+            onClose={() => onDismissMiniGrill('idea')}
+          />
         </div>
 
         {/* Question 2: Where Will People Use It? */}
@@ -319,21 +418,29 @@ export function ManifestDeck({
           </div>
         </div>
 
-        {/* Question 3: What Are the Main Steps? */}
+        {/* Question 3: Feature List */}
         <div className="space-y-2.5">
-          <div className="flex items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <LabelWithTooltip
               stepBadge="Q3"
-              label="What are the main steps or actions a user takes?"
+              label="Feature List (What should this app let people do?)"
               tooltipKey="field-features"
             />
-            <span className="text-[11px] font-mono text-[#A78BFA] tabular-nums">
-              {state.features.length} steps defined
-            </span>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[11px] font-mono text-[#A78BFA] tabular-nums">
+                {state.features.length} features listed
+              </span>
+              <MiniGrillButton
+                label="Mini Grill Features"
+                loading={miniGrillLoadingTopic === 'features'}
+                disabled={anyAiBusy && miniGrillLoadingTopic !== 'features'}
+                onClick={() => void onMiniGrill('features')}
+              />
+            </div>
           </div>
 
           <div className="space-y-2">
-            {state.features.map((step, index) => (
+            {state.features.map((feature, index) => (
               <div
                 key={index}
                 className="flex items-center gap-2.5 p-2 rounded-xl bg-[#0F0C1B]/80 border border-[#C084FC]/20 focus-within:border-[#8B5CF6]"
@@ -343,15 +450,15 @@ export function ManifestDeck({
                 </span>
                 <input
                   type="text"
-                  value={step}
+                  value={feature}
                   onChange={(e) => handleUpdateStep(index, e.target.value)}
-                  aria-label={`User step ${index + 1}`}
+                  aria-label={`Feature ${index + 1}`}
                   className="flex-1 bg-transparent text-xs sm:text-sm text-[#E9D5FF] focus:outline-none"
                 />
                 <button
                   type="button"
                   onClick={() => handleRemoveStep(index)}
-                  aria-label={`Remove step ${index + 1}`}
+                  aria-label={`Remove feature ${index + 1}`}
                   className="p-1.5 rounded-lg text-[#958EA0] hover:text-[#FFB4AB] hover:bg-[#EF4444]/15 transition-colors cursor-pointer shrink-0"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
@@ -359,7 +466,7 @@ export function ManifestDeck({
               </div>
             ))}
 
-            {/* Add New Step Input */}
+            {/* Add Step / Feature Input */}
             <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 pt-1">
               <input
                 type="text"
@@ -371,11 +478,12 @@ export function ManifestDeck({
                     handleAddStep();
                   }
                 }}
-                placeholder="Add another plain-English step (e.g., Export monthly summary as a clean PDF)..."
+                placeholder="Add another feature or user action (e.g., Export monthly summary as a clean PDF)..."
                 className="flex-1 min-w-[200px] px-3.5 py-2 rounded-lg bg-[#0F0C1B]/90 border border-[#C084FC]/25 text-xs sm:text-sm text-white placeholder-[#958EA0]/60 focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]"
               />
+              <HelpBadge tooltipKey="field-add-step" />
               <FillWithAiButton
-                fieldLabel="Next Step"
+                fieldLabel="Next Feature"
                 loading={fillingField === 'nextStep'}
                 disabled={anyAiBusy && fillingField !== 'nextStep'}
                 onClick={() => void handleFillNextStep()}
@@ -390,6 +498,189 @@ export function ManifestDeck({
               </button>
             </div>
           </div>
+
+          <MiniGrillPanel
+            title="Add Missing Features"
+            questions={miniGrillQuestions.features ?? []}
+            onSelectAnswer={(qId, opt) => onSelectMiniGrillAnswer('features', qId, opt)}
+            onApplyToSection={applyFeatureMiniGrill}
+            onClose={() => onDismissMiniGrill('features')}
+          />
+        </div>
+
+        {/* Question 4: Coding Language & AI Advisor */}
+        <div className="pt-2 border-t border-[#C084FC]/15 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <LabelWithTooltip
+              stepBadge="Q4"
+              label="Coding Language & Stack Choice"
+              tooltipKey="field-coding-language"
+            />
+            <div className="flex flex-wrap items-center gap-2">
+              <MiniGrillButton
+                label="Mini Grill Stack"
+                loading={miniGrillLoadingTopic === 'codingLanguage'}
+                disabled={anyAiBusy && miniGrillLoadingTopic !== 'codingLanguage'}
+                onClick={() => void onMiniGrill('codingLanguage')}
+              />
+              <span className="inline-flex items-center gap-1">
+                <ExplainerTooltip tooltipKey="action-language-advisor" side="top">
+                  <button
+                    type="button"
+                    onClick={() => void onRecommendLanguage()}
+                    disabled={isRecommendingLanguage}
+                    className="pf-btn-primary inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap cursor-pointer disabled:opacity-50"
+                  >
+                    {isRecommendingLanguage ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Code2 className="w-3.5 h-3.5" />
+                    )}
+                    <span>
+                      {isRecommendingLanguage
+                        ? 'Analyzing Languages...'
+                        : "Ask AI: What's Best for What?"}
+                    </span>
+                  </button>
+                </ExplainerTooltip>
+                <HelpBadge tooltipKey="action-language-advisor" side="top" />
+              </span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+            {CODING_LANGUAGES.map((lang) => {
+              const isSelected = state.codingLanguage === lang.id;
+              return (
+                <button
+                  key={lang.id}
+                  type="button"
+                  onClick={() =>
+                    onUpdate((prev) => ({
+                      ...prev,
+                      codingLanguage: lang.id as CodingLanguageId,
+                      lastUpdated: new Date().toISOString(),
+                    }))
+                  }
+                  className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                    isSelected
+                      ? 'bg-[#5E6AD2]/20 border-[#5E6AD2] text-white shadow-[0_0_16px_rgba(94,106,210,0.25)]'
+                      : 'bg-[#0F0C1B]/75 border-[#C084FC]/20 text-[#CBC3D7] hover:border-[#C084FC]/40 hover:bg-white/[0.03]'
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-2 mb-1">
+                    <span className="text-xs font-semibold text-white">{lang.label}</span>
+                    {isSelected && (
+                      <CheckCircle2 className="w-3.5 h-3.5 text-[#A5B4FC] shrink-0" />
+                    )}
+                  </div>
+                  <p className="text-[11px] leading-snug text-[#D0BCFF]/90">
+                    <span className="font-semibold text-[#34D399]">Best for: </span>
+                    {lang.bestFor}
+                  </p>
+                  <p className="text-[10.5px] leading-snug text-[#958EA0] mt-1">
+                    {lang.tradeoffs}
+                  </p>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Language Advisor AI Result */}
+          {languageAdvice && (
+            <div className="p-4 rounded-xl bg-[#0B0D12] border border-[#5E6AD2]/40 space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <span className="text-[10px] font-mono uppercase tracking-wider text-[#34D399]">
+                    AI Language Recommendation
+                  </span>
+                  <h4 className="text-sm font-bold text-white">
+                    Best Match: {languageAdvice.recommendedLabel}
+                  </h4>
+                </div>
+                <button
+                  type="button"
+                  onClick={() =>
+                    onUpdate((prev) => ({
+                      ...prev,
+                      codingLanguage: languageAdvice.recommendedId,
+                      lastUpdated: new Date().toISOString(),
+                    }))
+                  }
+                  className="pf-btn-primary inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold cursor-pointer"
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  <span>Use {languageAdvice.recommendedLabel}</span>
+                </button>
+              </div>
+              <p className="text-xs leading-relaxed text-[#E2E8F0]">{languageAdvice.summary}</p>
+              <p className="text-xs leading-relaxed text-[#94A3B8]">
+                <span className="font-semibold text-[#C7D2FE]">Trade-offs: </span>
+                {languageAdvice.tradeoffs}
+              </p>
+
+              {languageAdvice.comparisons.length > 0 && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2 pt-1">
+                  {languageAdvice.comparisons.map((comp) => (
+                    <div
+                      key={comp.language}
+                      className="p-2.5 rounded-lg bg-[#131620] border border-[#1D2230] space-y-1"
+                    >
+                      <div className="text-xs font-semibold text-white">{comp.language}</div>
+                      <div className="text-[11px] text-[#34D399]">
+                        <span className="font-semibold">Best for: </span>
+                        {comp.bestFor}
+                      </div>
+                      <div className="text-[11px] text-[#94A3B8] leading-snug">
+                        {comp.whyConsiderOrSkip}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Optional Language Notes Blank */}
+          <div className="space-y-1.5">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <LabelWithTooltip
+                label={`Language & Library Notes (${selectedLanguageMeta.shortTag})`}
+                tooltipKey="field-coding-language-note"
+                htmlFor="input-coding-language-note"
+              />
+              <FillWithAiButton
+                fieldLabel="Language Preferences"
+                loading={fillingField === 'codingLanguageNote'}
+                disabled={anyAiBusy && fillingField !== 'codingLanguageNote'}
+                onClick={() => void onFillField('codingLanguageNote')}
+              />
+            </div>
+            <input
+              id="input-coding-language-note"
+              type="text"
+              value={state.codingLanguageNote}
+              onChange={(e) =>
+                onUpdate((prev) => ({
+                  ...prev,
+                  codingLanguageNote: e.target.value,
+                  lastUpdated: new Date().toISOString(),
+                }))
+              }
+              placeholder="Optional: specific libraries, UI kits, or coding preferences..."
+              className="w-full px-3.5 py-2.5 rounded-lg bg-[#0F0C1B]/90 border border-[#C084FC]/25 text-xs sm:text-sm text-[#E9D5FF] placeholder-[#958EA0]/60 focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]"
+            />
+          </div>
+
+          <MiniGrillPanel
+            title="Refine Language & Stack"
+            questions={miniGrillQuestions.codingLanguage ?? []}
+            onSelectAnswer={(qId, opt) =>
+              onSelectMiniGrillAnswer('codingLanguage', qId, opt)
+            }
+            onApplyToSection={applyLanguageMiniGrill}
+            onClose={() => onDismissMiniGrill('codingLanguage')}
+          />
         </div>
       </div>
     </DeckCard>

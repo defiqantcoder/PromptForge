@@ -1,4 +1,5 @@
 import { ExportPlatformId, ProjectState, SpecFileId } from '../types/project';
+import { CODING_LANGUAGES } from './presets';
 
 const PLATFORM_LABELS: Record<ProjectState['targetPlatform'], string> = {
   desktop: 'Native Ubuntu Desktop Application (Tauri v2 + React 19)',
@@ -6,6 +7,13 @@ const PLATFORM_LABELS: Record<ProjectState['targetPlatform'], string> = {
   mobile: 'Mobile-First Progressive Web Application (Touch Ergonomic 48px Targets)',
   cli: 'Interactive Command-Line & Developer Terminal Tool',
 };
+
+export function getCodingLanguageLabel(state: ProjectState): string {
+  const found = CODING_LANGUAGES.find((l) => l.id === (state.codingLanguage || 'auto'));
+  const base = found ? found.label : 'Let AI Recommend';
+  const note = state.codingLanguageNote?.trim();
+  return note ? `${base} (${note})` : base;
+}
 
 function interpolateVariables(text: string, vars: Record<string, string>): string {
   if (!vars) return text;
@@ -69,6 +77,7 @@ export function compileSpecMd(state: ProjectState): string {
 
 > **Tagline:** ${state.tagline || 'No tagline provided'}
 > **Target Environment:** ${PLATFORM_LABELS[state.targetPlatform]}
+> **Coding Language:** ${getCodingLanguageLabel(state)}
 > **Primary AI Model:** \`{{primary_model}}\` · **Target OS:** \`{{target_os}}\`
 
 ## 1. Objective
@@ -78,7 +87,7 @@ ${state.coreIdea || 'No core idea provided'}
 - **Everyday Builders & Creators:** Users who want a fast, jargon-free experience for ${state.appName} without wrestling with complex setup steps.
 - **Power Users & Technical Practitioners:** Users who value deterministic exports, keyboard-first speed, and clear system boundaries.
 
-## 3. Core Capabilities
+## 3. Core Capabilities (Feature List)
 ${featuresList}
 
 ## 4. Confirmed Clarification Decisions ("Grill Me" Outcomes)
@@ -96,21 +105,22 @@ export function compilePlanMd(state: ProjectState): string {
   const raw = `# Technical Plan: ${state.appName}
 
 ## 1. System Architecture
-${state.appName} uses a clean separation between its interactive React 19 interface, server-side Gemini synthesis routes (\`{{primary_model}}\`), and typed Tauri v2 IPC filesystem commands on \`{{target_os}}\`.
+${state.appName} uses a clean separation between its interactive UI interface, AI synthesis routes (\`{{primary_model}}\`), and local platform runtime on \`{{target_os}}\`.
 
 \`\`\`
-[React 19 Frontend: Stacked Decks & Mode Switcher]
+[Frontend UI & Stacked Decks]
     │
-    ├──► [Gemini API Service (@google/genai: {{primary_model}})] ──► Live Contract Compiler
+    ├──► [Gemini AI Service ({{primary_model}})] ──► Live Contract Compiler
     │
-    └──► [Tauri IPC Bridge (@tauri-apps/api/core)]
+    └──► [Tauri IPC / Native Layer]
              │
              ▼
-[Rust Backend (src-tauri/src/lib.rs)]
+[Backend & Storage]
     ├──► Canonical Filesystem Writer (spec.md, plan.md, tasks.md, AGENTS.md)
     └──► System Keyring Credential Guard
 \`\`\`
 
+- **Preferred Coding Language:** ${getCodingLanguageLabel(state)}
 - **Stack Summary:** ${state.proConfig.stackSummary}
 - **Architecture Pattern:** ${state.proConfig.architectureStyle}
 
@@ -238,6 +248,7 @@ ${state.appName} (${state.tagline || 'No tagline provided'})
 ${state.coreIdea || 'No core idea provided'}
 
 ## 2. Stack
+- **Coding Language:** ${getCodingLanguageLabel(state)}
 - **Core Stack:** ${state.proConfig.stackSummary}
 - **Target Platform:** ${PLATFORM_LABELS[state.targetPlatform]}
 - **AI Engine:** Google Gemini API via official \`@google/genai\` SDK (\`{{primary_model}}\`)
@@ -402,32 +413,52 @@ export function compilePlatformContract(
     ? safeCustomRules.map((r) => `• ${r}`).join('\n')
     : '• Follow standard plain-English labeling conventions.';
 
+  const codingLanguageLabel = getCodingLanguageLabel(state);
+  const stitch = state.stitchUi;
+  const uiDecisionsSummary =
+    stitch?.uiClarifications && stitch.uiClarifications.length > 0
+      ? stitch.uiClarifications
+          .map((c) => `• ${c.category}: ${c.selectedAnswer || c.options[0]}`)
+          .join('\n')
+      : '• High-contrast dark glassmorphic layout with clear visual hierarchy.';
+  const referenceImagesSummary =
+    stitch?.ideaImages && stitch.ideaImages.length > 0
+      ? stitch.ideaImages.map((img) => `• Attached reference image: ${img.name}`).join('\n')
+      : '• No reference images attached.';
+  const stitchResultContext = stitch?.uploadedResultName
+    ? `\n## Uploaded Google Stitch UI Result\n- **File / Artifact:** ${stitch.uploadedResultName}\n${
+        stitch.uploadedResultNotes ? `- **UI Notes:** ${stitch.uploadedResultNotes}\n` : ''
+      }${
+        stitch.uploadedResultContent
+          ? `- **Result Excerpt:**\n\`\`\`\n${stitch.uploadedResultContent}\n\`\`\`\n`
+          : ''
+      }`
+    : '';
+
   switch (platform) {
     case 'stitch': {
       const promptText = interpolateVariables(
         `# Google Stitch UI Generation Contract — ${state.appName}
 
-Design a high-precision, keyboard-first desktop workstation interface for **${state.appName}** (${state.tagline || 'No tagline'}).
+Design a high-precision, friendly interface for **${state.appName}** (${state.tagline || 'No tagline'}) targeting **${PLATFORM_LABELS[state.targetPlatform]}**.
 
-## 1. Visual Language & Surface Tokens
-- **Canvas Backdrop**: Velvety night-violet \`#0F0C1B\`
-- **Primary Cards (Level 1)**: Frosted purple glass \`rgba(27, 21, 46, 0.75)\` with \`12px\` backdrop blur and \`1px solid rgba(192, 132, 252, 0.2)\` hairline border
-- **Popovers & Hover Callouts (Level 2)**: \`rgba(38, 30, 65, 0.94)\` with ambient violet glow
+## 1. Visual Language & Direction
+${stitch?.visualDirection ? `- **Visual Direction:** ${stitch.visualDirection}` : '- **Canvas Backdrop**: Velvety night-violet `#0F0C1B` with frosted purple glass cards (`rgba(27, 21, 46, 0.75)`)'}
 - **Primary Accent**: \`{{accent_color}}\` (Electric Violet pill buttons & active focus rings)
-- **Secondary Accent**: \`#EC4899\` (Luminous Pink for interactive \`{{variable}}\` tokens)
-- **Semantic Status**: \`#34D399\` (Mint Emerald for compiler readiness & verified paths)
-- **Typography**: Plus Jakarta Sans / Inter headings (\`-0.02em\` tracking, pure \`#FFFFFF\`) + JetBrains Mono (\`tabular-nums\`) for live Markdown & code panes.
+- **Secondary Accent**: \`#EC4899\` (Luminous Pink highlights) · **Status**: \`#34D399\`
+- **Reference Images**:
+${referenceImagesSummary}
 
-## 2. Core Screens & User Flows to Render
+## 2. Core Screens & Feature Flows to Render
 ${featuresBullets}
 
-## 3. Confirmed UX & Layout Decisions
+## 3. Confirmed UI & Layout Decisions
+${uiDecisionsSummary}
 ${clarificationsSummary}
 
 ## 4. Essential UI Components
-- Native Ubuntu window titlebar with breadcrumbs and a 3-tier mode switcher (\`Simple | Balanced | Pro\`)
-- 3-column workstation grid: Left Preset & Navigation Sidebar (260px), Central Stacked Decks Canvas, Right Live Markdown & Platform Contract Inspector (460px)
-- Floating plain-English hover explainer callout card (\`role="tooltip"\`)`,
+- Clear top bar with breadcrumbs, mode switcher, and primary export action
+- Responsive workspace layout with floating plain-English hover explainer callouts (\`role="tooltip"\`)`,
         state.proConfig.templateVariables
       );
       return {
@@ -442,17 +473,19 @@ ${clarificationsSummary}
       const promptText = interpolateVariables(
         `# Google AI Studio Full-Stack Build Prompt — ${state.appName}
 
-Build the complete, working full-stack application for **${state.appName}**: ${state.tagline || 'No tagline'}
+Build the complete, working application for **${state.appName}**: ${state.tagline || 'No tagline'}
+- **Target Platform**: ${PLATFORM_LABELS[state.targetPlatform]}
+- **Coding Language**: ${codingLanguageLabel}
 
 ## Product Overview
 ${state.coreIdea || 'No core idea provided'}
 
-## Core Interactive Capabilities
+## Core Interactive Capabilities (Feature List)
 ${featuresBullets}
 
 ## Confirmed Product Decisions
 ${clarificationsSummary}
-
+${stitchResultContext}
 ## Architecture & Technical Guardrails
 - **Stack**: ${state.proConfig.stackSummary}
 - **AI Integration**: Server-side Express endpoints in \`server.ts\` using official \`@google/genai\` SDK with model \`{{primary_model}}\` and \`User-Agent: 'aistudio-build'\`. Never call Gemini directly from browser code or render API key input fields.
@@ -474,10 +507,11 @@ ${customRulesSummary}`,
       const promptText = interpolateVariables(
         `# Google Antigravity (AGY) Autonomous Engineering Contract — ${state.appName}
 
-Execute the multi-file implementation and verification plan for **${state.appName}** targeting \`{{target_os}}\`.
+Execute the multi-file implementation and verification plan for **${state.appName}** targeting \`{{target_os}}\` using **${codingLanguageLabel}**.
 
 ## 1. Mission & Architecture
 ${state.coreIdea || 'No core idea provided'}
+- **Coding Language**: ${codingLanguageLabel}
 - **Architecture**: ${state.proConfig.architectureStyle}
 - **Security Boundary**: ${state.proConfig.securityBoundary}
 - **Default Export Path**: \`{{export_dir}}\`
@@ -487,18 +521,18 @@ ${rulesSummaryFallback}
 
 ## 3. Confirmed Architectural Decisions
 ${clarificationsSummary}
-
+${stitchResultContext}
 ## 4. Phased Execution Tasks (${state.proConfig.taskSlicingMode})
-1. **T001 (HITL)**: Verify TypeScript domain models (\`src/types/project.ts\`) and Tauri IPC bridge (\`src/services/tauriBridge.ts\` + \`src-tauri/src/lib.rs\`).
-2. **T002 (AFK [P])**: Enforce glassmorphic tokens (\`#0F0C1B\`, \`{{accent_color}}\`) and 100ms accessible hover tooltips (\`role="tooltip"\`).
-3. **T003 (HITL)**: Implement and test all core user flows:
+1. **T001 (HITL)**: Verify domain models (\`src/types/project.ts\`) and native IPC / backend bindings.
+2. **T002 (AFK [P])**: Implement UI theme tokens (\`#0F0C1B\`, \`{{accent_color}}\`) and 100ms accessible hover tooltips (\`role="tooltip"\`).
+3. **T003 (HITL)**: Implement and test all core features:
 ${featuresBullets}
-4. **T004 (HITL)**: Run \`npx tsc --noEmit\` and \`npm run build\` to verify zero compilation errors.`,
+4. **T004 (HITL)**: Run \`npx tsc --noEmit\` and \`npm run build\` (plus native checks) to verify zero compilation errors.`,
         state.proConfig.templateVariables
       );
       return {
         title: 'Google Antigravity (AGY)',
-        subtitle: 'Autonomous agent task graph, Rust IPC & verification loop',
+        subtitle: 'Autonomous agent task graph, native IPC & verification loop',
         badge: 'Agent Execution Spec',
         promptText,
       };
@@ -508,21 +542,21 @@ ${featuresBullets}
       const promptText = interpolateVariables(
         `# GitHub Copilot Workspace & Repository Instructions — ${state.appName}
 
-You are working on **${state.appName}** (${state.tagline || 'No tagline'}).
+You are working on **${state.appName}** (${state.tagline || 'No tagline'}) using **${codingLanguageLabel}**.
 Follow these repository instructions for all code completions and multi-file edits:
 
 ## Stack & Conventions
+- **Coding Language**: ${codingLanguageLabel}
 - ${state.proConfig.stackSummary}
-- Use functional React components with named exports.
-- Every section header, toggle switch, and action button must be wrapped in a plain-English hover tooltip (\`role="tooltip"\`).
-- Route all native disk exports through \`saveSpecBundle\` in \`src/services/tauriBridge.ts\` (canonicalize paths, reject \`../\`).
+- Use clean modular components with plain-English hover tooltips (\`role="tooltip"\`).
+- Follow all security boundaries: ${state.proConfig.securityBoundary}.
 
 ## Feature Checklist
 ${featuresBullets}
-
+${stitchResultContext}
 ## Testing & Verification
 - ${state.proConfig.testingStrategy}
-- Always verify with \`npx tsc --noEmit\` after modifying TypeScript interfaces.`,
+- Always verify with typechecks and unit tests after modifying interfaces.`,
         state.proConfig.templateVariables
       );
       return {
@@ -537,7 +571,7 @@ ${featuresBullets}
       const promptText = interpolateVariables(
         `# Gemini Canvas Interactive Refinement Contract — ${state.appName}
 
-Help me interactively polish and expand the user experience of **${state.appName}** (${state.tagline || 'No tagline'}).
+Help me interactively polish and expand the user experience of **${state.appName}** (${state.tagline || 'No tagline'}) targeting **${codingLanguageLabel}**.
 
 ## Core Concept
 ${state.coreIdea || 'No core idea provided'}
@@ -546,11 +580,12 @@ ${state.coreIdea || 'No core idea provided'}
 ${featuresBullets}
 
 ## Visual & Interaction Style
-- Deep twilight canvas (\`#0F0C1B\`) with frosted purple glass cards and \`{{accent_color}}\` electric violet highlights
+- ${stitch?.visualDirection || 'Deep twilight canvas (#0F0C1B) with frosted purple glass cards and {{accent_color}} highlights'}
 - Three-tier complexity toggle (\`Simple | Balanced | Pro\`) that filters visible fields without resetting user input
-- Friendly 2-sentence hover explainers on every badge and control
+- Friendly hover explainers on every badge and control
 - Confirmed user choices:
-${clarificationsSummary}`,
+${clarificationsSummary}
+${stitchResultContext}`,
         state.proConfig.templateVariables
       );
       return {
@@ -561,4 +596,58 @@ ${clarificationsSummary}`,
       };
     }
   }
+}
+
+export interface GuidedWorkflowRecommendation {
+  nextAppId: ExportPlatformId;
+  nextAppName: string;
+  nextAppUrl: string;
+  whyRecommended: string;
+  nextPrompt: string;
+  polishAppId: ExportPlatformId;
+  polishAppName: string;
+  polishPrompt: string;
+}
+
+export function recommendBuildWorkflow(state: ProjectState): GuidedWorkflowRecommendation {
+  const lang = state.codingLanguage || 'auto';
+  const prefersAntigravity =
+    state.targetPlatform === 'desktop' ||
+    state.targetPlatform === 'cli' ||
+    lang === 'rust-tauri' ||
+    lang === 'go' ||
+    lang === 'python' ||
+    lang === 'kotlin-android' ||
+    lang === 'swift-ios' ||
+    lang === 'dart-flutter' ||
+    lang === 'csharp-dotnet';
+
+  const nextAppId: ExportPlatformId = prefersAntigravity ? 'antigravity' : 'aistudio';
+  const nextContract = compilePlatformContract(state, nextAppId);
+  const polishAppId: ExportPlatformId = prefersAntigravity ? 'copilot' : 'canvas';
+  const polishContract = compilePlatformContract(state, polishAppId);
+
+  const whyRecommended = prefersAntigravity
+    ? `Google Antigravity (AGY) is best here because ${
+        state.targetPlatform === 'desktop' || state.targetPlatform === 'cli'
+          ? `you are building a ${state.targetPlatform} app`
+          : `you selected ${getCodingLanguageLabel(state)}`
+      }, which benefits from multi-file editing, native compiler checks, and AGENTS.md + spec.md execution.`
+    : `Google AI Studio is best here because your ${state.targetPlatform} app in ${getCodingLanguageLabel(
+        state
+      )} can be scaffolded, previewed live, and wired with Gemini API routes immediately from your Stitch UI design.`;
+
+  return {
+    nextAppId,
+    nextAppName: nextContract.title,
+    nextAppUrl:
+      nextAppId === 'antigravity'
+        ? 'https://antigravity.google/'
+        : 'https://aistudio.google.com/',
+    whyRecommended,
+    nextPrompt: nextContract.promptText,
+    polishAppId,
+    polishAppName: polishContract.title,
+    polishPrompt: polishContract.promptText,
+  };
 }

@@ -19,6 +19,7 @@ import {
   compileSpecMd,
   compileTasksMd,
 } from '../services/compiler';
+import { HelpBadge, LabelWithTooltip } from './Tooltip';
 import {
   canonicalizeLinuxPath,
   getNativeHomeDir,
@@ -137,9 +138,12 @@ export function SaveModal({ open, onOpenChange, state }: SaveModalProps) {
                 <HardDrive className="w-5 h-5" />
               </div>
               <div>
-                <Dialog.Title className="text-lg font-semibold text-white tracking-tight">
-                  Save Specification Bundle to Computer
-                </Dialog.Title>
+                <div className="flex items-center gap-1.5">
+                  <Dialog.Title className="text-lg font-semibold text-white tracking-tight">
+                    Save Specification Bundle to Computer
+                  </Dialog.Title>
+                  <HelpBadge tooltipKey="action-save-computer" />
+                </div>
                 <Dialog.Description className="text-xs text-[#CBC3D7]">
                   Ubuntu Directory Selector & Tauri IPC Atomic Writer (`save_spec_bundle`)
                 </Dialog.Description>
@@ -159,9 +163,12 @@ export function SaveModal({ open, onOpenChange, state }: SaveModalProps) {
           {/* Ubuntu Nautilus Quick Folder Presets */}
           <div className="space-y-4">
             <div>
-              <label className="block text-xs font-semibold text-white mb-2">
-                1. Choose Ubuntu Destination Directory
-              </label>
+              <div className="mb-2">
+                <LabelWithTooltip
+                  label="1. Choose Ubuntu Destination Directory"
+                  tooltipKey="field-export-dir"
+                />
+              </div>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 mb-3">
                 {UBUNTU_QUICK_DIRS.map((dir) => {
                   const selected = targetDir === dir.path;
@@ -210,14 +217,17 @@ export function SaveModal({ open, onOpenChange, state }: SaveModalProps) {
                     className="w-full px-3 py-2 rounded-lg bg-[#0F0C1B] border border-[#C084FC]/25 text-xs font-mono text-white focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]"
                   />
                   {isNativeDesktop && (
-                    <button
-                      type="button"
-                      onClick={handleBrowseFolder}
-                      className="pf-btn-secondary inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap shrink-0 cursor-pointer"
-                    >
-                      <FolderSearch className="w-3.5 h-3.5 text-[#D0BCFF]" />
-                      <span>Browse Folder…</span>
-                    </button>
+                    <span className="inline-flex items-center gap-1 shrink-0">
+                      <button
+                        type="button"
+                        onClick={handleBrowseFolder}
+                        className="pf-btn-secondary inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap cursor-pointer"
+                      >
+                        <FolderSearch className="w-3.5 h-3.5 text-[#D0BCFF]" />
+                        <span>Browse Folder…</span>
+                      </button>
+                      <HelpBadge tooltipKey="action-browse-folder" />
+                    </span>
                   )}
                 </div>
 

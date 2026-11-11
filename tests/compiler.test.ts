@@ -109,4 +109,50 @@ test('compiler test suite', async (t) => {
     assert.match(specMd, /1\. Export report - Delete records/);
     assert.doesNotMatch(specMd, /\n- Delete records/);
   });
+
+  await t.test('compiler injects codingLanguage, Stitch UI direction/results, and recommends next workflow app', async () => {
+    const { recommendBuildWorkflow } = await import('../src/services/compiler.ts');
+    const richState: ProjectState = {
+      ...mockState,
+      targetPlatform: 'web',
+      codingLanguage: 'typescript-react',
+      codingLanguageNote: 'Prefer Radix primitives and Tailwind utilities',
+      stitchUi: {
+        visualDirection: 'Editorial dark dashboard with floating glass rails',
+        uiClarifications: [
+          {
+            id: 'ui-1',
+            category: 'Density',
+            question: 'How dense?',
+            options: ['Balanced whitespace'],
+            selectedAnswer: 'Balanced whitespace',
+          },
+        ],
+        ideaImages: [],
+        uploadedResultName: 'stitch-export.html',
+        uploadedResultContent: '<main><h1>Dashboard</h1></main>',
+        uploadedResultNotes: 'Wire state filters to sidebar',
+      },
+    };
+
+    const agentsMd = compileAgentsMd(richState);
+    assert.match(agentsMd, /TypeScript \+ React/);
+    assert.match(agentsMd, /Prefer Radix primitives/);
+
+    const stitchContract = compilePlatformContract(richState, 'stitch');
+    assert.match(stitchContract.promptText, /Editorial dark dashboard/);
+    assert.match(stitchContract.promptText, /Balanced whitespace/);
+
+    const webWorkflow = recommendBuildWorkflow(richState);
+    assert.equal(webWorkflow.nextAppId, 'aistudio');
+    assert.match(webWorkflow.nextPrompt, /stitch-export\.html/);
+    assert.match(webWorkflow.nextPrompt, /Dashboard/);
+
+    const rustWorkflow = recommendBuildWorkflow({
+      ...richState,
+      targetPlatform: 'desktop',
+      codingLanguage: 'rust-tauri',
+    });
+    assert.equal(rustWorkflow.nextAppId, 'antigravity');
+  });
 });

@@ -1,17 +1,26 @@
 import React from 'react';
-import { CheckCircle2, Loader2, MessageSquare, Sparkles } from 'lucide-react';
+import { CheckCircle2, Loader2, MessageSquare, RefreshCw, Sparkles } from 'lucide-react';
 import { ProjectState } from '../types/project';
 import { DeckCard } from '../components/Card';
-import { ExplainerTooltip } from '../components/Tooltip';
+import { ExplainerTooltip, HelpBadge } from '../components/Tooltip';
 
 interface GrillDeckProps {
   state: ProjectState;
   onUpdate: (updater: (prev: ProjectState) => ProjectState) => void;
   onGrillMe: () => Promise<void>;
   isGrilling: boolean;
+  isAutoRefreshing?: boolean;
+  lastSyncedAt?: string | null;
 }
 
-export function GrillDeck({ state, onUpdate, onGrillMe, isGrilling }: GrillDeckProps) {
+export function GrillDeck({
+  state,
+  onUpdate,
+  onGrillMe,
+  isGrilling,
+  isAutoRefreshing = false,
+  lastSyncedAt = null,
+}: GrillDeckProps) {
   const handleSelectAnswer = (questionId: string, option: string) => {
     onUpdate((prev) => ({
       ...prev,
@@ -26,27 +35,53 @@ export function GrillDeck({ state, onUpdate, onGrillMe, isGrilling }: GrillDeckP
     <DeckCard
       id="deck-grill"
       stepNumber="03."
-      title={'"Grill Me" — 3-Question Clarification Interview'}
-      subtitle="Let Gemini inspect your idea and ask 3 quick multiple-choice questions to lock in missing details before generating code."
+      title={'"Grill Me" — Dynamic Clarification Interview'}
+      subtitle="Questions automatically adapt as you edit your idea, features, coding language, or ground rules—or refresh anytime for 3 fresh questions."
       tooltipKey="deck-grill"
       headerRight={
-        <ExplainerTooltip tooltipKey="action-grill-me" side="bottom">
-          <button
-            type="button"
-            onClick={onGrillMe}
-            disabled={isGrilling}
-            className="pf-btn-primary inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-50"
-          >
-            {isGrilling ? (
-              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#0F0C1B]/85 border border-[#C084FC]/20 text-[11px] text-[#CBC3D7]">
+            {isAutoRefreshing || isGrilling ? (
+              <>
+                <RefreshCw className="w-3 h-3 animate-spin text-[#EC4899]" />
+                <span>Adapting to your edits...</span>
+              </>
             ) : (
-              <MessageSquare className="w-3.5 h-3.5" />
+              <>
+                <Sparkles className="w-3 h-3 text-[#34D399]" />
+                <span>
+                  {lastSyncedAt
+                    ? `Dynamic sync · ${new Date(lastSyncedAt).toLocaleTimeString([], {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}`
+                    : 'Dynamic AI ready'}
+                </span>
+              </>
             )}
-            <span>
-              {isGrilling ? 'Analyzing Idea...' : 'Grill Me (Ask 3 Fresh Questions)'}
-            </span>
-          </button>
-        </ExplainerTooltip>
+          </span>
+
+          <span className="inline-flex items-center gap-1">
+            <ExplainerTooltip tooltipKey="action-grill-me" side="bottom">
+              <button
+                type="button"
+                onClick={onGrillMe}
+                disabled={isGrilling}
+                className="pf-btn-primary inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-50"
+              >
+                {isGrilling ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <MessageSquare className="w-3.5 h-3.5" />
+                )}
+                <span>
+                  {isGrilling ? 'Analyzing Idea...' : 'Grill Me (Ask 3 Fresh Questions)'}
+                </span>
+              </button>
+            </ExplainerTooltip>
+            <HelpBadge tooltipKey="action-grill-me" side="bottom" />
+          </span>
+        </div>
       }
     >
       {state.clarifications.length === 0 ? (
@@ -57,7 +92,7 @@ export function GrillDeck({ state, onUpdate, onGrillMe, isGrilling }: GrillDeckP
               No Clarification Questions Generated Yet
             </h3>
             <p className="text-xs text-[#CBC3D7] max-w-md mx-auto">
-              Click "Grill Me" above to have Gemini spot edge cases in your app idea and suggest 3 multiple-choice decisions.
+              Click "Grill Me" above—or edit your idea above—so Gemini can spot edge cases and suggest 3 tailored multiple-choice decisions.
             </p>
           </div>
         </div>
@@ -75,6 +110,7 @@ export function GrillDeck({ state, onUpdate, onGrillMe, isGrilling }: GrillDeckP
                   </span>
                   <span aria-hidden="true">·</span>
                   <span className="font-medium text-[#EC4899]">{item.category}</span>
+                  <HelpBadge tooltipKey="deck-grill" />
                 </div>
                 {item.selectedAnswer && (
                   <span className="inline-flex items-center gap-1 text-[11px] font-medium text-[#34D399]">

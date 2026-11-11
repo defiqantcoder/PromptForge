@@ -48,21 +48,40 @@ async function generateContentWithTimeout(ai: GoogleGenAI, params: GenerateConte
   }
 }
 
-const MAX_TEXT_LENGTH = 20_000;
-const MAX_SHORT_LENGTH = 500;
-const MAX_FEATURES = 30;
-
-function isValidOptionalString(value: unknown, maxLen = MAX_SHORT_LENGTH): boolean {
-  return value === undefined || (typeof value === 'string' && value.length <= maxLen);
+function isValidOptionalString(value: unknown): boolean {
+  return value === undefined || typeof value === 'string';
 }
 
 function isValidOptionalFeatures(value: unknown): boolean {
   return (
     value === undefined ||
-    (Array.isArray(value) &&
-      value.length <= MAX_FEATURES &&
-      value.every((f) => typeof f === 'string' && f.length <= MAX_SHORT_LENGTH))
+    (Array.isArray(value) && value.every((f) => typeof f === 'string'))
   );
+}
+
+interface ImageInput {
+  mimeType?: string;
+  dataUrl?: string;
+}
+
+function buildMultimodalContents(prompt: string, images?: unknown) {
+  const parts: Array<Record<string, unknown>> = [{ text: prompt }];
+  if (Array.isArray(images)) {
+    for (const img of images as ImageInput[]) {
+      if (typeof img?.dataUrl === 'string') {
+        const match = img.dataUrl.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
+        if (match) {
+          parts.push({
+            inlineData: {
+              mimeType: match[1],
+              data: match[2],
+            },
+          });
+        }
+      }
+    }
+  }
+  return parts.length === 1 ? prompt : [{ role: 'user', parts }];
 }
 
 async function executeGeminiJsonRoute(
@@ -100,7 +119,7 @@ async function executeGeminiJsonRoute(
 export async function createApp() {
   const app = express();
   app.disable('x-powered-by');
-  app.use(express.json({ limit: '2mb' }));
+  app.use(express.json({ limit: '25mb' }));
 
   const requireGeminiKey = (_req: express.Request, res: express.Response, next: express.NextFunction) => {
     if (!isGeminiConfigured()) {
@@ -128,11 +147,7 @@ export async function createApp() {
       res.status(400).json({ error: 'Please enter at least a rough phrase or sentence for your app idea first.' });
       return;
     }
-    if (coreIdea.length > MAX_TEXT_LENGTH) {
-      res.status(400).json({ error: 'App idea text exceeds the maximum allowed length.' });
-      return;
-    }
-    if (!isValidOptionalString(appName) || !isValidOptionalString(targetPlatform, 32)) {
+    if (!isValidOptionalString(appName) || !isValidOptionalString(targetPlatform)) {
       res.status(400).json({ error: 'Invalid app metadata payload.' });
       return;
     }
@@ -287,23 +302,27 @@ Include:
     );
   });
 
-  // 3. Socratic Interrogator ("Grill Me" 3-Question Interview)
+  // 3. Socratic Interrogator ("Grill Me" Dynamic 3-Question Interview)
   app.post('/api/gemini/grill', requireGeminiKey, async (req, res) => {
-    const { appName, coreIdea, targetPlatform, features, groundRules } = req.body || {};
+    const {
+      appName,
+      tagline,
+      coreIdea,
+      targetPlatform,
+      codingLanguage,
+      codingLanguageNote,
+      features,
+      groundRules,
+      clarifications,
+      proConfig,
+      stitchUi,
+    } = req.body || {};
     if (!coreIdea || typeof coreIdea !== 'string' || !coreIdea.trim()) {
       res.status(400).json({ error: 'Please describe your app idea first so PromptForge knows what to ask.' });
       return;
     }
-    if (coreIdea.length > MAX_TEXT_LENGTH) {
-      res.status(400).json({ error: 'App idea text exceeds the maximum allowed length.' });
-      return;
-    }
-    if (!isValidOptionalString(appName)) {
-      res.status(400).json({ error: 'Invalid app name.' });
-      return;
-    }
-    if (!isValidOptionalString(targetPlatform, 32)) {
-      res.status(400).json({ error: 'Invalid target platform.' });
+    if (!isValidOptionalString(appName) || !isValidOptionalString(tagline) || !isValidOptionalString(targetPlatform)) {
+      res.status(400).json({ error: 'Invalid app metadata payload.' });
       return;
     }
     if (!isValidOptionalFeatures(features)) {
@@ -321,17 +340,23 @@ Include:
     await executeGeminiJsonRoute(
       {
         model: 'gemini-3.8-flash',
-        contents: `Analyze this application specification and generate 3 sharp, friendly multiple-choice clarification questions ("Grill Me") that uncover missing product details, edge cases, or user experience choices.
+        contents: `Analyze ALL current entries in this application specification and generate 3 sharp, friendly multiple-choice clarification questions ("Grill Me") that dynamically adapt to what the user has already entered and uncover remaining missing details, edge cases, or UX choices.
 
 App Name: ${appName || 'Untitled App'}
+Tagline: ${tagline || 'None yet'}
 Target Device: ${targetPlatform || 'desktop'}
+Coding Language: ${codingLanguage || 'auto'} ${codingLanguageNote ? `(${codingLanguageNote})` : ''}
 Core Idea: ${coreIdea}
-Main Steps: ${Array.isArray(features) ? features.join(' | ') : ''}
+Feature List: ${Array.isArray(features) ? features.join(' | ') : ''}
 Ground Rules: ${JSON.stringify(groundRules || {})}
+Previous Clarifications: ${JSON.stringify(clarifications || [])}
+Pro Config: ${JSON.stringify(proConfig || {})}
+Stitch UI Direction: ${JSON.stringify(stitchUi ? { visualDirection: stitchUi.visualDirection, uploadedResultName: stitchUi.uploadedResultName } : {})}
 
 Rules for the 3 questions:
 - Write questions in plain, everyday English (no intimidating jargon).
-- Each question must have 3 distinct, practical multiple-choice options (under 12 words each).
+- Adapt directly to the user's current features, platform, coding language, and prior answers—do not repeat questions already answered identically unless new features introduced a gap.
+- Each question must have 3 distinct, practical multiple-choice options.
 - Prefix the best option with "(Recommended) ".
 - Set selectedAnswer to that recommended first option.`,
         config: {
@@ -371,47 +396,52 @@ Rules for the 3 questions:
     );
   });
 
-  // 4. Context-Aware Single-Field Fill with AI
+  // 4. Context-Aware Single-Field Fill with AI (uses all other filled fields)
   const FILL_FIELD_GUIDANCE: Record<string, { label: string; instruction: string }> = {
     appName: {
       label: 'App Name',
       instruction:
-        'Generate a crisp, memorable 1-3 word application name in "value" based on the core idea, tagline, target device, and steps.',
+        'Generate a crisp, memorable 1-3 word application name in "value" based on ALL other filled fields (tagline, coreIdea, targetPlatform, codingLanguage, features, stitchUi).',
     },
     tagline: {
       label: 'One-Sentence Summary',
       instruction:
-        'Write a warm, plain-English 1-sentence summary (under 18 words) in "value" describing what the app does and who it helps.',
+        'Write a warm, plain-English 1-sentence summary in "value" describing what the app does and who it helps using all other filled fields.',
     },
     coreIdea: {
       label: 'Big Idea (Plain English)',
       instruction:
-        'Write 2 clear, jargon-free paragraphs in "value" explaining the app purpose, target users, and day-to-day experience using any prior app name, tagline, platform, and steps.',
+        'Write clear, jargon-free paragraphs in "value" explaining the app purpose, target users, and day-to-day experience using ALL other filled fields (appName, tagline, platform, codingLanguage, features, groundRules, clarifications).',
     },
     nextStep: {
-      label: 'Next User Step',
+      label: 'Next Feature',
       instruction:
-        'Suggest 1 concrete, high-value plain-English user action step in "value" that complements the existing steps without duplicating them.',
+        'Suggest 1 concrete, high-value plain-English feature in "value" that complements the existing feature list without duplicating any item.',
+    },
+    codingLanguageNote: {
+      label: 'Coding Language Notes',
+      instruction:
+        'Suggest helpful plain-English library, framework, or version notes in "value" tailored to the chosen codingLanguage, targetPlatform, groundRules, and features.',
     },
     stackSummary: {
       label: 'Preferred Tech Stack Summary',
       instruction:
-        'Suggest a concise 1-line tech stack summary in "value" tailored to the target device, app idea, ground rules, and clarifications.',
+        'Suggest a concise tech stack summary in "value" tailored to the codingLanguage, targetPlatform, app idea, ground rules, and clarifications.',
     },
     architectureStyle: {
       label: 'System Architecture Pattern',
       instruction:
-        'Suggest a clear 1-sentence architecture pattern in "value" matching the stack, ground rules (offline/privacy/speed), and clarification decisions.',
+        'Suggest a clear 1-sentence architecture pattern in "value" matching the codingLanguage, stack, ground rules, and clarification decisions.',
     },
     testingStrategy: {
       label: 'Verification & Testing Rules',
       instruction:
-        'Suggest a practical 1-sentence testing and verification strategy in "value" aligned with the target platform, stack, and features.',
+        'Suggest a practical testing and verification strategy in "value" aligned with the codingLanguage, targetPlatform, stack, and features.',
     },
     securityBoundary: {
       label: 'Security & Filesystem Boundary',
       instruction:
-        'Suggest a concrete 1-sentence security & data privacy boundary in "value" reflecting the ground rules, platform, and app features.',
+        'Suggest a concrete security & data privacy boundary in "value" reflecting the ground rules, platform, codingLanguage, and app features.',
     },
     templateVariable: {
       label: 'Dynamic Template Token',
@@ -422,6 +452,16 @@ Rules for the 3 questions:
       label: 'Persistent AI Coding Rule',
       instruction:
         'Suggest 1 concise, actionable coding or UX convention in "value" that is NOT already in existing customRules and fits the project.',
+    },
+    stitchVisualDirection: {
+      label: 'Stitch UI Visual Direction',
+      instruction:
+        'Describe a vivid, cohesive UI layout, color mood, and component hierarchy in "value" for Google Stitch based on all other filled fields.',
+    },
+    uploadedResultNotes: {
+      label: 'Stitch Result Handoff Notes',
+      instruction:
+        'Summarize in "value" how the next coding tool should wire interactive logic, state, and edge cases onto the Stitch UI based on all filled fields.',
     },
   };
 
@@ -437,27 +477,22 @@ Rules for the 3 questions:
     }
 
     const serializedContext = JSON.stringify(context);
-    if (serializedContext.length > MAX_TEXT_LENGTH * 2) {
-      res.status(400).json({ error: 'Project context exceeds the maximum allowed length.' });
-      return;
-    }
-
     const guidance = FILL_FIELD_GUIDANCE[field];
     await executeGeminiJsonRoute(
       {
         model: 'gemini-3.8-flash',
-        contents: `You are PromptForge, helping a builder fill out one specific field using everything already entered in prior sections.
+        contents: `You are PromptForge, helping a builder fill out one specific field using EVERY OTHER filled field across the entire project.
 
 Target Field: ${field} (${guidance.label})
 Task: ${guidance.instruction}
 
-Existing Project Context (JSON):
+Full Project Context (JSON):
 ${serializedContext}
 
-Return valid JSON with "value" (and "secondaryValue" only when Target Field is "templateVariable"). Avoid jargon in Simple/Balanced fields and stay consistent with all prior sections.`,
+Return valid JSON with "value" (and "secondaryValue" only when Target Field is "templateVariable"). Avoid jargon in Simple/Balanced fields and stay consistent with all other filled sections.`,
         config: {
           systemInstruction:
-            'You are a thoughtful product architect. Read all prior sections carefully and return strictly valid JSON with a smart, tailored answer for the requested field.',
+            'You are a thoughtful product architect. Read every filled field in the context carefully and return strictly valid JSON with a smart, tailored answer for the requested field.',
           responseMimeType: 'application/json',
           responseSchema: {
             type: Type.OBJECT,
@@ -477,6 +512,178 @@ Return valid JSON with "value" (and "secondaryValue" only when Target Field is "
       },
       res,
       `Could not fill ${guidance.label} with AI right now. Your existing text has been safely preserved.`
+    );
+  });
+
+  // 5. Mini "Grill Me" Quick Follow-Up Questions for Specific Sections (supports multimodal images for Stitch UI)
+  const MINI_GRILL_TOPICS: Record<string, string> = {
+    idea: 'Clarify the core user problem, audience, or daily workflow so the Big Idea description becomes much sharper.',
+    features: 'Clarify missing user interactions or edge cases so a concrete new feature can be added to the Feature List.',
+    groundRules: 'Clarify offline behavior, speed expectations, or data privacy expectations.',
+    codingLanguage: 'Clarify developer ergonomics, target ecosystem, or deployment priorities to refine coding language notes.',
+    proArch: 'Clarify technical architecture, testing coverage, or security constraints for AGENTS.md.',
+    stitchUi: 'Grill the user specifically about visual UI design (layout density, navigation pattern, color mood, typography, and component style) using any attached reference images.',
+  };
+
+  app.post('/api/gemini/mini-grill', requireGeminiKey, async (req, res) => {
+    const { topic, context, images } = req.body || {};
+    if (!topic || typeof topic !== 'string' || !(topic in MINI_GRILL_TOPICS)) {
+      res.status(400).json({ error: 'Unsupported mini-grill topic.' });
+      return;
+    }
+    if (!context || typeof context !== 'object' || Array.isArray(context)) {
+      res.status(400).json({ error: 'Invalid project context payload.' });
+      return;
+    }
+
+    const prompt = `Generate 2 quick, friendly multiple-choice helper questions focused on "${topic}" (${MINI_GRILL_TOPICS[topic]}) so the user can add concrete detail to their app.
+
+Full Project Context (JSON):
+${JSON.stringify(context)}
+
+Rules:
+- Keep questions short and plain-English.
+- Each question must have 3 practical options, prefixing the best option with "(Recommended) ".
+- Set selectedAnswer to that recommended option.`;
+
+    await executeGeminiJsonRoute(
+      {
+        model: 'gemini-3.8-flash',
+        contents: buildMultimodalContents(prompt, images),
+        config: {
+          systemInstruction:
+            'You are a friendly product & UI design coach. Return strictly valid JSON with 2 targeted multiple-choice questions.',
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              questions: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    id: { type: Type.STRING },
+                    category: { type: Type.STRING },
+                    question: { type: Type.STRING },
+                    options: { type: Type.ARRAY, items: { type: Type.STRING } },
+                    selectedAnswer: { type: Type.STRING },
+                  },
+                  required: ['id', 'category', 'question', 'options', 'selectedAnswer'],
+                },
+              },
+            },
+            required: ['questions'],
+          },
+        },
+      },
+      res,
+      'Could not generate mini-grill questions right now. Your active form text is safe.'
+    );
+  });
+
+  // 6. Google Stitch "Surprise Me" UI Concept Generator (with optional uploaded idea images)
+  app.post('/api/gemini/stitch-surprise', requireGeminiKey, async (req, res) => {
+    const { context, images } = req.body || {};
+    if (!context || typeof context !== 'object' || Array.isArray(context)) {
+      res.status(400).json({ error: 'Invalid project context payload.' });
+      return;
+    }
+
+    const prompt = `Invent an inspiring, cohesive visual UI design direction for Google Stitch tailored to this application (and analyzing any attached inspiration images if provided).
+
+Full Project Context (JSON):
+${JSON.stringify(context)}
+
+Return:
+- visualDirection: a rich 2-3 sentence visual/layout brief describing color palette, surface materials, spatial layout, and vibe
+- colorMood: short 3-6 word palette summary
+- layoutSuggestion: short 1-sentence layout recommendation
+- uiHighlights: 3 specific UI components or micro-interactions that will make this app shine`;
+
+    await executeGeminiJsonRoute(
+      {
+        model: 'gemini-3.8-flash',
+        contents: buildMultimodalContents(prompt, images),
+        config: {
+          systemInstruction:
+            'You are a world-class UI/UX designer preparing a visual brief for Google Stitch. Return strictly valid JSON.',
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              visualDirection: { type: Type.STRING },
+              colorMood: { type: Type.STRING },
+              layoutSuggestion: { type: Type.STRING },
+              uiHighlights: { type: Type.ARRAY, items: { type: Type.STRING } },
+            },
+            required: ['visualDirection', 'colorMood', 'layoutSuggestion', 'uiHighlights'],
+          },
+        },
+      },
+      res,
+      'Could not generate a Surprise Me UI idea right now. Your existing visual notes are safe.'
+    );
+  });
+
+  // 7. Coding Language Advisor ("What is best for what?")
+  app.post('/api/gemini/recommend-language', requireGeminiKey, async (req, res) => {
+    const { context } = req.body || {};
+    if (!context || typeof context !== 'object' || Array.isArray(context)) {
+      res.status(400).json({ error: 'Invalid project context payload.' });
+      return;
+    }
+
+    const allowedIds = [
+      'typescript-react',
+      'rust-tauri',
+      'python',
+      'dart-flutter',
+      'kotlin-android',
+      'swift-ios',
+      'go',
+      'csharp-dotnet',
+    ];
+
+    await executeGeminiJsonRoute(
+      {
+        model: 'gemini-3.8-flash',
+        contents: `Analyze this app specification and advise the builder in plain English on which coding language is best for what—and which single language fits their app best.
+
+Full Project Context (JSON):
+${JSON.stringify(context)}
+
+Choose recommendedId from: ${allowedIds.join(', ')}.
+Include 4 practical language comparisons explaining clearly what each language is best for and how well it fits this specific app.`,
+        config: {
+          systemInstruction:
+            'You are a friendly principal engineer explaining coding language trade-offs in plain, jargon-free English. Return strictly valid JSON.',
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              recommendedId: { type: Type.STRING },
+              recommendedLabel: { type: Type.STRING },
+              reasoning: { type: Type.STRING },
+              comparisons: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    id: { type: Type.STRING },
+                    label: { type: Type.STRING },
+                    bestFor: { type: Type.STRING },
+                    fitSummary: { type: Type.STRING },
+                  },
+                  required: ['id', 'label', 'bestFor', 'fitSummary'],
+                },
+              },
+            },
+            required: ['recommendedId', 'recommendedLabel', 'reasoning', 'comparisons'],
+          },
+        },
+      },
+      res,
+      'Could not fetch AI coding language advice right now. You can still select any language manually.'
     );
   });
 

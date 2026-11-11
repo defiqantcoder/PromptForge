@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { CheckCircle2, Eye, EyeOff, KeyRound, ShieldCheck, X } from 'lucide-react';
 import { setSecureKey } from '../services/tauriBridge';
+import { HelpBadge, LabelWithTooltip } from './Tooltip';
 
 interface KeyringModalProps {
   open: boolean;
@@ -64,9 +65,12 @@ export function KeyringModal({ open, onOpenChange, hasKey, onSaved }: KeyringMod
                 <KeyRound className="w-5 h-5" />
               </div>
               <div>
-                <Dialog.Title className="text-base font-semibold text-white tracking-tight">
-                  Desktop Gemini Keyring
-                </Dialog.Title>
+                <div className="flex items-center gap-1.5">
+                  <Dialog.Title className="text-base font-semibold text-white tracking-tight">
+                    Desktop Gemini Keyring
+                  </Dialog.Title>
+                  <HelpBadge tooltipKey="action-keyring" />
+                </div>
                 <Dialog.Description className="text-xs text-[#CBC3D7]">
                   Stored locally in your Ubuntu system keyring (`libsecret`)
                 </Dialog.Description>
@@ -103,9 +107,11 @@ export function KeyringModal({ open, onOpenChange, hasKey, onSaved }: KeyringMod
             </div>
 
             <div className="space-y-1.5">
-              <label htmlFor="desktop-gemini-key" className="block text-xs font-medium text-white">
-                Gemini API Key
-              </label>
+              <LabelWithTooltip
+                label="Gemini API Key"
+                tooltipKey="action-keyring"
+                htmlFor="desktop-gemini-key"
+              />
               <div className="relative">
                 <input
                   id="desktop-gemini-key"
