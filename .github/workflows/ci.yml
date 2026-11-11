@@ -5,6 +5,8 @@ on:
     branches:
       - main
   pull_request:
+    branches:
+      - main
 
 permissions:
   contents: read
@@ -52,9 +54,13 @@ jobs:
       - name: Typecheck TypeScript
         run: npx tsc --noEmit
 
-      - name: Run frontend tests
+      - name: Run frontend and server tests
         run: npm test
 
-      - name: Check Rust backend
-        working-directory: src-tauri
-        run: cargo check
+      - name: Build frontend bundle
+        run: npm run build
+
+      - name: Check and test Rust backend
+        run: |
+          cargo check --manifest-path src-tauri/Cargo.toml
+          cargo test --manifest-path src-tauri/Cargo.toml
