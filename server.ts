@@ -1,3 +1,4 @@
+import { securityHeadersMiddleware, createRateLimiter, localOriginGuard } from './server/security.js';
 import express from 'express';
 import { createServer as createViteServer } from 'vite';
 import path from 'path';
@@ -120,6 +121,16 @@ export async function createApp() {
   const app = express();
   app.disable('x-powered-by');
   app.use(express.json({ limit: '25mb' }));
+
+  const rateLimiter = createRateLimiter({
+    windowMs: 60000,
+    maxRequests: 1000,
+    skip: (req) => process.env.NODE_ENV === 'test'
+  });
+
+  app.use('/api', securityHeadersMiddleware);
+  app.use('/api', rateLimiter);
+  app.use('/api', localOriginGuard);
 
   const requireGeminiKey = (_req: express.Request, res: express.Response, next: express.NextFunction) => {
     if (!isGeminiConfigured()) {
@@ -687,7 +698,7 @@ Include 4 practical language comparisons explaining clearly what each language i
     );
   });
 
-  if (process.env.NODE_ENV !== 'production') {
+  if (process.env.NODE_ENV !== 'production' && process.env.NODE_ENV !== 'test') {
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',
@@ -696,7 +707,7 @@ Include 4 practical language comparisons explaining clearly what each language i
   } else {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
-    app.get('*', (_req, res) => {
+    app.get('*', rateLimiter, (_req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }
