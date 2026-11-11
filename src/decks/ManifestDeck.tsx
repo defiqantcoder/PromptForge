@@ -12,8 +12,10 @@ import {
   Trash2,
   Wand2,
 } from 'lucide-react';
-import { ProjectState, TargetPlatform } from '../types/project';
+import { FillableFieldId, ProjectState, TargetPlatform } from '../types/project';
+import { FillFieldResponse } from '../services/geminiClient';
 import { DeckCard } from '../components/Card';
+import { FillWithAiButton } from '../components/FillWithAiButton';
 import { ExplainerTooltip, LabelWithTooltip } from '../components/Tooltip';
 
 interface ManifestDeckProps {
@@ -21,6 +23,8 @@ interface ManifestDeckProps {
   onUpdate: (updater: (prev: ProjectState) => ProjectState) => void;
   onFleshOutIdea: () => Promise<void>;
   onRandomAiIdea: () => Promise<void>;
+  onFillField: (field: FillableFieldId) => Promise<FillFieldResponse | null>;
+  fillingField: FillableFieldId | null;
   isExpanding: boolean;
   isGeneratingRandom: boolean;
   canUndoExpansion: boolean;
@@ -64,6 +68,8 @@ export function ManifestDeck({
   onUpdate,
   onFleshOutIdea,
   onRandomAiIdea,
+  onFillField,
+  fillingField,
   isExpanding,
   isGeneratingRandom,
   canUndoExpansion,
@@ -80,6 +86,13 @@ export function ManifestDeck({
       lastUpdated: new Date().toISOString(),
     }));
     setNewStepText('');
+  };
+
+  const handleFillNextStep = async () => {
+    const res = await onFillField('nextStep');
+    if (res?.value) {
+      setNewStepText(res.value);
+    }
   };
 
   const handleRemoveStep = (index: number) => {
@@ -101,6 +114,8 @@ export function ManifestDeck({
       };
     });
   };
+
+  const anyAiBusy = Boolean(fillingField) || isExpanding || isGeneratingRandom;
 
   return (
     <DeckCard
@@ -159,48 +174,64 @@ export function ManifestDeck({
       <div className="space-y-6">
         {/* App Name & Tagline Row */}
         <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
-          <div className="md:col-span-4 space-y-1.5">
+          <div className="md:col-span-5 space-y-1.5">
             <LabelWithTooltip
               label="App Name"
               tooltipKey="field-app-name"
               htmlFor="input-app-name"
             />
-            <input
-              id="input-app-name"
-              type="text"
-              value={state.appName}
-              onChange={(e) =>
-                onUpdate((prev) => ({
-                  ...prev,
-                  appName: e.target.value,
-                  lastUpdated: new Date().toISOString(),
-                }))
-              }
-              placeholder="e.g., PulseVault"
-              className="w-full px-3.5 py-2.5 rounded-lg bg-[#0F0C1B]/90 border border-[#C084FC]/25 text-sm font-medium text-white placeholder-[#958EA0]/60 focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]"
-            />
+            <div className="flex items-center gap-2">
+              <input
+                id="input-app-name"
+                type="text"
+                value={state.appName}
+                onChange={(e) =>
+                  onUpdate((prev) => ({
+                    ...prev,
+                    appName: e.target.value,
+                    lastUpdated: new Date().toISOString(),
+                  }))
+                }
+                placeholder="e.g., PulseVault"
+                className="flex-1 min-w-0 px-3.5 py-2.5 rounded-lg bg-[#0F0C1B]/90 border border-[#C084FC]/25 text-sm font-medium text-white placeholder-[#958EA0]/60 focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]"
+              />
+              <FillWithAiButton
+                fieldLabel="App Name"
+                loading={fillingField === 'appName'}
+                disabled={anyAiBusy && fillingField !== 'appName'}
+                onClick={() => void onFillField('appName')}
+              />
+            </div>
           </div>
 
-          <div className="md:col-span-8 space-y-1.5">
+          <div className="md:col-span-7 space-y-1.5">
             <LabelWithTooltip
               label="One-Sentence Summary"
               tooltipKey="field-app-name"
               htmlFor="input-tagline"
             />
-            <input
-              id="input-tagline"
-              type="text"
-              value={state.tagline}
-              onChange={(e) =>
-                onUpdate((prev) => ({
-                  ...prev,
-                  tagline: e.target.value,
-                  lastUpdated: new Date().toISOString(),
-                }))
-              }
-              placeholder="What does this app do in one friendly sentence?"
-              className="w-full px-3.5 py-2.5 rounded-lg bg-[#0F0C1B]/90 border border-[#C084FC]/25 text-sm text-[#E9D5FF] placeholder-[#958EA0]/60 focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]"
-            />
+            <div className="flex items-center gap-2">
+              <input
+                id="input-tagline"
+                type="text"
+                value={state.tagline}
+                onChange={(e) =>
+                  onUpdate((prev) => ({
+                    ...prev,
+                    tagline: e.target.value,
+                    lastUpdated: new Date().toISOString(),
+                  }))
+                }
+                placeholder="What does this app do in one friendly sentence?"
+                className="flex-1 min-w-0 px-3.5 py-2.5 rounded-lg bg-[#0F0C1B]/90 border border-[#C084FC]/25 text-sm text-[#E9D5FF] placeholder-[#958EA0]/60 focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]"
+              />
+              <FillWithAiButton
+                fieldLabel="One-Sentence Summary"
+                loading={fillingField === 'tagline'}
+                disabled={anyAiBusy && fillingField !== 'tagline'}
+                onClick={() => void onFillField('tagline')}
+              />
+            </div>
           </div>
         </div>
 
@@ -213,9 +244,17 @@ export function ManifestDeck({
               tooltipKey="field-core-idea"
               htmlFor="textarea-core-idea"
             />
-            <span className="text-[11px] font-mono text-[#A78BFA] tabular-nums">
-              {state.coreIdea.length} chars · Click "Flesh Out My Idea" to auto-expand
-            </span>
+            <div className="flex items-center gap-2.5">
+              <span className="text-[11px] font-mono text-[#A78BFA] tabular-nums">
+                {state.coreIdea.length} chars
+              </span>
+              <FillWithAiButton
+                fieldLabel="Big Idea"
+                loading={fillingField === 'coreIdea'}
+                disabled={anyAiBusy && fillingField !== 'coreIdea'}
+                onClick={() => void onFillField('coreIdea')}
+              />
+            </div>
           </div>
 
           <div className="rounded-2xl bg-[#0F0C1B]/85 border border-[#C084FC]/25 focus-within:ring-2 focus-within:ring-[#8B5CF6] transition-shadow">
@@ -321,7 +360,7 @@ export function ManifestDeck({
             ))}
 
             {/* Add New Step Input */}
-            <div className="flex items-center gap-2 pt-1">
+            <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 pt-1">
               <input
                 type="text"
                 value={newStepText}
@@ -333,7 +372,13 @@ export function ManifestDeck({
                   }
                 }}
                 placeholder="Add another plain-English step (e.g., Export monthly summary as a clean PDF)..."
-                className="flex-1 px-3.5 py-2 rounded-lg bg-[#0F0C1B]/90 border border-[#C084FC]/25 text-xs sm:text-sm text-white placeholder-[#958EA0]/60 focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]"
+                className="flex-1 min-w-[200px] px-3.5 py-2 rounded-lg bg-[#0F0C1B]/90 border border-[#C084FC]/25 text-xs sm:text-sm text-white placeholder-[#958EA0]/60 focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]"
+              />
+              <FillWithAiButton
+                fieldLabel="Next Step"
+                loading={fillingField === 'nextStep'}
+                disabled={anyAiBusy && fillingField !== 'nextStep'}
+                onClick={() => void handleFillNextStep()}
               />
               <button
                 type="button"

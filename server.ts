@@ -371,6 +371,115 @@ Rules for the 3 questions:
     );
   });
 
+  // 4. Context-Aware Single-Field Fill with AI
+  const FILL_FIELD_GUIDANCE: Record<string, { label: string; instruction: string }> = {
+    appName: {
+      label: 'App Name',
+      instruction:
+        'Generate a crisp, memorable 1-3 word application name in "value" based on the core idea, tagline, target device, and steps.',
+    },
+    tagline: {
+      label: 'One-Sentence Summary',
+      instruction:
+        'Write a warm, plain-English 1-sentence summary (under 18 words) in "value" describing what the app does and who it helps.',
+    },
+    coreIdea: {
+      label: 'Big Idea (Plain English)',
+      instruction:
+        'Write 2 clear, jargon-free paragraphs in "value" explaining the app purpose, target users, and day-to-day experience using any prior app name, tagline, platform, and steps.',
+    },
+    nextStep: {
+      label: 'Next User Step',
+      instruction:
+        'Suggest 1 concrete, high-value plain-English user action step in "value" that complements the existing steps without duplicating them.',
+    },
+    stackSummary: {
+      label: 'Preferred Tech Stack Summary',
+      instruction:
+        'Suggest a concise 1-line tech stack summary in "value" tailored to the target device, app idea, ground rules, and clarifications.',
+    },
+    architectureStyle: {
+      label: 'System Architecture Pattern',
+      instruction:
+        'Suggest a clear 1-sentence architecture pattern in "value" matching the stack, ground rules (offline/privacy/speed), and clarification decisions.',
+    },
+    testingStrategy: {
+      label: 'Verification & Testing Rules',
+      instruction:
+        'Suggest a practical 1-sentence testing and verification strategy in "value" aligned with the target platform, stack, and features.',
+    },
+    securityBoundary: {
+      label: 'Security & Filesystem Boundary',
+      instruction:
+        'Suggest a concrete 1-sentence security & data privacy boundary in "value" reflecting the ground rules, platform, and app features.',
+    },
+    templateVariable: {
+      label: 'Dynamic Template Token',
+      instruction:
+        'Suggest 1 useful new template variable NOT already in existing templateVariables: put a short snake_case key in "value" and a sensible default string in "secondaryValue".',
+    },
+    customRule: {
+      label: 'Persistent AI Coding Rule',
+      instruction:
+        'Suggest 1 concise, actionable coding or UX convention in "value" that is NOT already in existing customRules and fits the project.',
+    },
+  };
+
+  app.post('/api/gemini/fill-field', requireGeminiKey, async (req, res) => {
+    const { field, context } = req.body || {};
+    if (!field || typeof field !== 'string' || !(field in FILL_FIELD_GUIDANCE)) {
+      res.status(400).json({ error: 'Unsupported field requested for AI fill.' });
+      return;
+    }
+    if (!context || typeof context !== 'object' || Array.isArray(context)) {
+      res.status(400).json({ error: 'Invalid project context payload.' });
+      return;
+    }
+
+    const serializedContext = JSON.stringify(context);
+    if (serializedContext.length > MAX_TEXT_LENGTH * 2) {
+      res.status(400).json({ error: 'Project context exceeds the maximum allowed length.' });
+      return;
+    }
+
+    const guidance = FILL_FIELD_GUIDANCE[field];
+    await executeGeminiJsonRoute(
+      {
+        model: 'gemini-3.8-flash',
+        contents: `You are PromptForge, helping a builder fill out one specific field using everything already entered in prior sections.
+
+Target Field: ${field} (${guidance.label})
+Task: ${guidance.instruction}
+
+Existing Project Context (JSON):
+${serializedContext}
+
+Return valid JSON with "value" (and "secondaryValue" only when Target Field is "templateVariable"). Avoid jargon in Simple/Balanced fields and stay consistent with all prior sections.`,
+        config: {
+          systemInstruction:
+            'You are a thoughtful product architect. Read all prior sections carefully and return strictly valid JSON with a smart, tailored answer for the requested field.',
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              value: {
+                type: Type.STRING,
+                description: 'Smart context-aware value for the target field.',
+              },
+              secondaryValue: {
+                type: Type.STRING,
+                description: 'Optional secondary value (used as token value when field is templateVariable).',
+              },
+            },
+            required: ['value'],
+          },
+        },
+      },
+      res,
+      `Could not fill ${guidance.label} with AI right now. Your existing text has been safely preserved.`
+    );
+  });
+
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
       server: { middlewareMode: true },

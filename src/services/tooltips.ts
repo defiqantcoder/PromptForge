@@ -158,4 +158,9 @@ export const TOOLTIP_DICTIONARY: Record<string, TooltipEntry> = {
     description: 'Saves your Gemini API key securely inside your Ubuntu system keyring so AI features work offline from any Express server.',
     aiUsage: 'Rust reads this key directly from GNOME Keyring during native Gemini requests and never saves it to plain text files.',
   },
+  'action-fill-with-ai': {
+    title: 'Context-Aware Fill with AI',
+    description: 'Uses what you have already written in earlier sections to draft a smart, tailored answer for this specific field.',
+    aiUsage: 'Reads your app idea, target device, steps, ground rules, and clarifications to keep every field consistent.',
+  },
 };

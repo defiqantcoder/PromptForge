@@ -1,12 +1,16 @@
 import React, { useState } from 'react';
 import { Plus, Trash2, Bot, UserCheck, Workflow } from 'lucide-react';
-import { ProjectState, TaskSlicingMode } from '../types/project';
+import { FillableFieldId, ProjectState, TaskSlicingMode } from '../types/project';
+import { FillFieldResponse } from '../services/geminiClient';
 import { DeckCard } from '../components/Card';
+import { FillWithAiButton } from '../components/FillWithAiButton';
 import { LabelWithTooltip } from '../components/Tooltip';
 
 interface TasksDeckProps {
   state: ProjectState;
   onUpdate: (updater: (prev: ProjectState) => ProjectState) => void;
+  onFillField: (field: FillableFieldId) => Promise<FillFieldResponse | null>;
+  fillingField: FillableFieldId | null;
 }
 
 const SLICING_MODES: Array<{
@@ -35,7 +39,17 @@ const SLICING_MODES: Array<{
   },
 ];
 
-export function TasksDeck({ state, onUpdate }: TasksDeckProps) {
+const PRO_FIELDS: Array<{
+  field: 'stackSummary' | 'architectureStyle' | 'testingStrategy' | 'securityBoundary';
+  label: string;
+}> = [
+  { field: 'stackSummary', label: 'Preferred Tech Stack Summary (Section 2: Stack)' },
+  { field: 'architectureStyle', label: 'System Architecture Pattern (Section 5: Architecture)' },
+  { field: 'testingStrategy', label: 'Verification & Testing Rules (Section 7: Testing)' },
+  { field: 'securityBoundary', label: 'Security & Filesystem Boundary (Section 8: Security)' },
+];
+
+export function TasksDeck({ state, onUpdate, onFillField, fillingField }: TasksDeckProps) {
   const [newRule, setNewRule] = useState('');
   const [newVarKey, setNewVarKey] = useState('');
   const [newVarVal, setNewVarVal] = useState('');
@@ -98,6 +112,21 @@ export function TasksDeck({ state, onUpdate }: TasksDeckProps) {
     setNewVarVal('');
   };
 
+  const handleFillVariable = async () => {
+    const res = await onFillField('templateVariable');
+    if (res?.value) {
+      setNewVarKey(res.value.trim().replace(/[^a-zA-Z0-9_]/g, '_').toLowerCase());
+      setNewVarVal(res.secondaryValue || '');
+    }
+  };
+
+  const handleFillCustomRule = async () => {
+    const res = await onFillField('customRule');
+    if (res?.value) {
+      setNewRule(res.value);
+    }
+  };
+
   return (
     <DeckCard
       id="deck-tasks"
@@ -154,53 +183,25 @@ export function TasksDeck({ state, onUpdate }: TasksDeckProps) {
 
         {/* 10-Section AGENTS.md Core Overrides (Plain-English Labels) */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="space-y-1.5">
-            <label className="block text-xs font-semibold text-white">
-              Preferred Tech Stack Summary (Section 2: Stack)
-            </label>
-            <input
-              type="text"
-              value={state.proConfig.stackSummary}
-              onChange={(e) => updateProField('stackSummary', e.target.value)}
-              className="w-full px-3 py-2 rounded-lg bg-[#0F0C1B]/90 border border-[#C084FC]/25 text-xs text-[#E9D5FF] focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]"
-            />
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="block text-xs font-semibold text-white">
-              System Architecture Pattern (Section 5: Architecture)
-            </label>
-            <input
-              type="text"
-              value={state.proConfig.architectureStyle}
-              onChange={(e) => updateProField('architectureStyle', e.target.value)}
-              className="w-full px-3 py-2 rounded-lg bg-[#0F0C1B]/90 border border-[#C084FC]/25 text-xs text-[#E9D5FF] focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]"
-            />
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="block text-xs font-semibold text-white">
-              Verification & Testing Rules (Section 7: Testing)
-            </label>
-            <input
-              type="text"
-              value={state.proConfig.testingStrategy}
-              onChange={(e) => updateProField('testingStrategy', e.target.value)}
-              className="w-full px-3 py-2 rounded-lg bg-[#0F0C1B]/90 border border-[#C084FC]/25 text-xs text-[#E9D5FF] focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]"
-            />
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="block text-xs font-semibold text-white">
-              Security & Filesystem Boundary (Section 8: Security)
-            </label>
-            <input
-              type="text"
-              value={state.proConfig.securityBoundary}
-              onChange={(e) => updateProField('securityBoundary', e.target.value)}
-              className="w-full px-3 py-2 rounded-lg bg-[#0F0C1B]/90 border border-[#C084FC]/25 text-xs text-[#E9D5FF] focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]"
-            />
-          </div>
+          {PRO_FIELDS.map(({ field, label }) => (
+            <div key={field} className="space-y-1.5">
+              <label className="block text-xs font-semibold text-white">{label}</label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={state.proConfig[field]}
+                  onChange={(e) => updateProField(field, e.target.value)}
+                  className="flex-1 min-w-0 px-3 py-2 rounded-lg bg-[#0F0C1B]/90 border border-[#C084FC]/25 text-xs text-[#E9D5FF] focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]"
+                />
+                <FillWithAiButton
+                  fieldLabel={label}
+                  loading={fillingField === field}
+                  disabled={Boolean(fillingField) && fillingField !== field}
+                  onClick={() => void onFillField(field)}
+                />
+              </div>
+            </div>
+          ))}
         </div>
 
         {/* Interactive Variable Tokens Manager */}
@@ -255,6 +256,12 @@ export function TasksDeck({ state, onUpdate }: TasksDeckProps) {
               placeholder="Token value..."
               className="flex-1 min-w-[160px] px-3 py-1.5 rounded-lg bg-[#0F0C1B]/90 border border-[#C084FC]/25 text-xs text-white focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]"
             />
+            <FillWithAiButton
+              fieldLabel="Dynamic Token"
+              loading={fillingField === 'templateVariable'}
+              disabled={Boolean(fillingField) && fillingField !== 'templateVariable'}
+              onClick={() => void handleFillVariable()}
+            />
             <button
               type="button"
               onClick={handleAddVariable}
@@ -290,7 +297,7 @@ export function TasksDeck({ state, onUpdate }: TasksDeckProps) {
             ))}
           </div>
 
-          <div className="flex items-center gap-2 pt-1">
+          <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 pt-1">
             <input
               type="text"
               value={newRule}
@@ -302,7 +309,13 @@ export function TasksDeck({ state, onUpdate }: TasksDeckProps) {
                 }
               }}
               placeholder="Add a custom instruction for AI agents (e.g., Always include keyboard shortcuts)..."
-              className="flex-1 px-3 py-2 rounded-lg bg-[#0F0C1B]/90 border border-[#C084FC]/25 text-xs text-white focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]"
+              className="flex-1 min-w-[200px] px-3 py-2 rounded-lg bg-[#0F0C1B]/90 border border-[#C084FC]/25 text-xs text-white focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]"
+            />
+            <FillWithAiButton
+              fieldLabel="Custom Coding Rule"
+              loading={fillingField === 'customRule'}
+              disabled={Boolean(fillingField) && fillingField !== 'customRule'}
+              onClick={() => void handleFillCustomRule()}
             />
             <button
               type="button"

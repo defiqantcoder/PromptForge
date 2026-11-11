@@ -18,6 +18,7 @@ import {
 import {
   ComplexityMode,
   ExportPlatformId,
+  FillableFieldId,
   ProjectState,
   SpecFileId,
 } from './types/project';
@@ -32,6 +33,8 @@ import {
 } from './services/compiler';
 import {
   expandProjectIdea,
+  FillFieldResponse,
+  fillFieldWithAi,
   generateGrillQuestions,
   generateRandomAppIdea,
 } from './services/geminiClient';
@@ -134,6 +137,7 @@ export function App() {
   const [isExpanding, setIsExpanding] = useState(false);
   const [isGeneratingRandom, setIsGeneratingRandom] = useState(false);
   const [isGrilling, setIsGrilling] = useState(false);
+  const [fillingField, setFillingField] = useState<FillableFieldId | null>(null);
   const [bannerMessage, setBannerMessage] = useState<{
     type: 'success' | 'warning';
     text: string;
@@ -339,6 +343,58 @@ export function App() {
       );
     } finally {
       setIsGrilling(false);
+    }
+  };
+
+  // 4. Context-Aware Single-Field Fill with AI
+  const handleFillField = async (
+    field: FillableFieldId
+  ): Promise<FillFieldResponse | null> => {
+    if (fillingField) return null;
+    setFillingField(field);
+    setBannerMessage(null);
+
+    try {
+      const result = await fillFieldWithAi(field, projectState);
+      const val = result.value?.trim();
+      if (!val) {
+        showToast(
+          'warning',
+          'Gemini returned an empty suggestion. Your existing text is unchanged.'
+        );
+        return null;
+      }
+
+      const now = new Date().toISOString();
+      if (field === 'appName' || field === 'tagline' || field === 'coreIdea') {
+        setPreviousSnapshot(projectState);
+        setProjectState((prev) => ({ ...prev, [field]: val, lastUpdated: now }));
+      } else if (
+        field === 'stackSummary' ||
+        field === 'architectureStyle' ||
+        field === 'testingStrategy' ||
+        field === 'securityBoundary'
+      ) {
+        setPreviousSnapshot(projectState);
+        setProjectState((prev) => ({
+          ...prev,
+          proConfig: { ...prev.proConfig, [field]: val },
+          lastUpdated: now,
+        }));
+      }
+
+      showToast('success', 'Filled field using context from your prior project sections.');
+      return result;
+    } catch (err: unknown) {
+      showToast(
+        'warning',
+        err instanceof Error
+          ? err.message
+          : 'Could not fill this field with AI right now. Your existing text is safely preserved.'
+      );
+      return null;
+    } finally {
+      setFillingField(null);
     }
   };
 
@@ -701,6 +757,8 @@ export function App() {
             onUpdate={setProjectState}
             onFleshOutIdea={handleFleshOutIdea}
             onRandomAiIdea={handleRandomAiIdea}
+            onFillField={handleFillField}
+            fillingField={fillingField}
             isExpanding={isExpanding}
             isGeneratingRandom={isGeneratingRandom}
             canUndoExpansion={Boolean(previousSnapshot)}
@@ -743,7 +801,12 @@ export function App() {
 
           {/* Deck 4: Visible in Pro Mode */}
           {mode === 'pro' && (
-            <TasksDeck state={projectState} onUpdate={setProjectState} />
+            <TasksDeck
+              state={projectState}
+              onUpdate={setProjectState}
+              onFillField={handleFillField}
+              fillingField={fillingField}
+            />
           )}
 
           {/* Deck 5: Multi-Platform Exporter (Always visible at bottom of stack) */}

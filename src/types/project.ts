@@ -13,6 +13,18 @@ export type ExportPlatformId =
 
 export type SpecFileId = 'spec.md' | 'plan.md' | 'tasks.md' | 'AGENTS.md' | 'src-tauri/src/lib.rs';
 
+export type FillableFieldId =
+  | 'appName'
+  | 'tagline'
+  | 'coreIdea'
+  | 'nextStep'
+  | 'stackSummary'
+  | 'architectureStyle'
+  | 'testingStrategy'
+  | 'securityBoundary'
+  | 'templateVariable'
+  | 'customRule';
+
 export interface GroundRules {
   offlineFirst: boolean;
   highPerformance: boolean;

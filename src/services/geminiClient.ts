@@ -1,5 +1,11 @@
 import { invoke } from '@tauri-apps/api/core';
-import { ClarificationItem, GroundRules, ProjectState, TargetPlatform } from '../types/project';
+import {
+  ClarificationItem,
+  FillableFieldId,
+  GroundRules,
+  ProjectState,
+  TargetPlatform,
+} from '../types/project';
 import { isTauriEnvironment } from './tauriBridge';
 
 const TIMEOUT_MS = 30000;
@@ -114,5 +120,29 @@ export async function generateGrillQuestions(state: ProjectState): Promise<Grill
     targetPlatform: state.targetPlatform,
     features: state.features,
     groundRules: state.groundRules,
+  });
+}
+
+export interface FillFieldResponse {
+  value: string;
+  secondaryValue?: string;
+}
+
+export async function fillFieldWithAi(
+  field: FillableFieldId,
+  state: ProjectState
+): Promise<FillFieldResponse> {
+  return postGemini<FillFieldResponse>('/api/gemini/fill-field', {
+    field,
+    context: {
+      appName: state.appName,
+      tagline: state.tagline,
+      coreIdea: state.coreIdea,
+      targetPlatform: state.targetPlatform,
+      features: state.features,
+      groundRules: state.groundRules,
+      clarifications: state.clarifications,
+      proConfig: state.proConfig,
+    },
   });
 }

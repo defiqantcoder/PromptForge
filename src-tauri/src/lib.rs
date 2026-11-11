@@ -92,6 +92,7 @@ enum GeminiEndpoint {
     Expand,
     RandomIdea,
     Grill,
+    FillField,
 }
 
 fn normalize_gemini_endpoint(endpoint: &str) -> Result<GeminiEndpoint, String> {
@@ -99,7 +100,54 @@ fn normalize_gemini_endpoint(endpoint: &str) -> Result<GeminiEndpoint, String> {
         "/api/gemini/expand" | "expand" => Ok(GeminiEndpoint::Expand),
         "/api/gemini/random-idea" | "random-idea" => Ok(GeminiEndpoint::RandomIdea),
         "/api/gemini/grill" | "grill" => Ok(GeminiEndpoint::Grill),
+        "/api/gemini/fill-field" | "fill-field" => Ok(GeminiEndpoint::FillField),
         _ => Err("Unsupported Gemini endpoint.".to_string()),
+    }
+}
+
+fn fill_field_guidance(field: &str) -> Result<(&'static str, &'static str), String> {
+    match field {
+        "appName" => Ok((
+            "App Name",
+            "Generate a crisp, memorable 1-3 word application name in \"value\" based on the core idea, tagline, target device, and steps.",
+        )),
+        "tagline" => Ok((
+            "One-Sentence Summary",
+            "Write a warm, plain-English 1-sentence summary (under 18 words) in \"value\" describing what the app does and who it helps.",
+        )),
+        "coreIdea" => Ok((
+            "Big Idea (Plain English)",
+            "Write 2 clear, jargon-free paragraphs in \"value\" explaining the app purpose, target users, and day-to-day experience using any prior app name, tagline, platform, and steps.",
+        )),
+        "nextStep" => Ok((
+            "Next User Step",
+            "Suggest 1 concrete, high-value plain-English user action step in \"value\" that complements the existing steps without duplicating them.",
+        )),
+        "stackSummary" => Ok((
+            "Preferred Tech Stack Summary",
+            "Suggest a concise 1-line tech stack summary in \"value\" tailored to the target device, app idea, ground rules, and clarifications.",
+        )),
+        "architectureStyle" => Ok((
+            "System Architecture Pattern",
+            "Suggest a clear 1-sentence architecture pattern in \"value\" matching the stack, ground rules (offline/privacy/speed), and clarification decisions.",
+        )),
+        "testingStrategy" => Ok((
+            "Verification & Testing Rules",
+            "Suggest a practical 1-sentence testing and verification strategy in \"value\" aligned with the target platform, stack, and features.",
+        )),
+        "securityBoundary" => Ok((
+            "Security & Filesystem Boundary",
+            "Suggest a concrete 1-sentence security & data privacy boundary in \"value\" reflecting the ground rules, platform, and app features.",
+        )),
+        "templateVariable" => Ok((
+            "Dynamic Template Token",
+            "Suggest 1 useful new template variable NOT already in existing templateVariables: put a short snake_case key in \"value\" and a sensible default string in \"secondaryValue\".",
+        )),
+        "customRule" => Ok((
+            "Persistent AI Coding Rule",
+            "Suggest 1 concise, actionable coding or UX convention in \"value\" that is NOT already in existing customRules and fits the project.",
+        )),
+        _ => Err("Unsupported field requested for AI fill.".to_string()),
     }
 }
 
@@ -334,6 +382,56 @@ Rules for the 3 questions:\n\
                             }
                         },
                         "required": ["questions"]
+                    }
+                }
+            }))
+        }
+        GeminiEndpoint::FillField => {
+            let field = payload
+                .get("field")
+                .and_then(Value::as_str)
+                .ok_or_else(|| "Unsupported field requested for AI fill.".to_string())?;
+            let (label, instruction) = fill_field_guidance(field)?;
+            let context = payload
+                .get("context")
+                .filter(|v| v.is_object())
+                .ok_or_else(|| "Invalid project context payload.".to_string())?;
+            let serialized_context = context.to_string();
+            if serialized_context.len() > MAX_TEXT_LEN * 2 {
+                return Err("Project context exceeds the maximum allowed length.".to_string());
+            }
+
+            let prompt = format!(
+                "You are PromptForge, helping a builder fill out one specific field using everything already entered in prior sections.\n\n\
+Target Field: {field} ({label})\n\
+Task: {instruction}\n\n\
+Existing Project Context (JSON):\n\
+{serialized_context}\n\n\
+Return valid JSON with \"value\" (and \"secondaryValue\" only when Target Field is \"templateVariable\"). Avoid jargon in Simple/Balanced fields and stay consistent with all prior sections."
+            );
+
+            Ok(json!({
+                "systemInstruction": {
+                    "parts": [{
+                        "text": "You are a thoughtful product architect. Read all prior sections carefully and return strictly valid JSON with a smart, tailored answer for the requested field."
+                    }]
+                },
+                "contents": [{ "role": "user", "parts": [{ "text": prompt }] }],
+                "generationConfig": {
+                    "responseMimeType": "application/json",
+                    "responseSchema": {
+                        "type": "OBJECT",
+                        "properties": {
+                            "value": {
+                                "type": "STRING",
+                                "description": "Smart context-aware value for the target field."
+                            },
+                            "secondaryValue": {
+                                "type": "STRING",
+                                "description": "Optional secondary value (used as token value when field is templateVariable)."
+                            }
+                        },
+                        "required": ["value"]
                     }
                 }
             }))
@@ -602,5 +700,26 @@ mod tests {
         );
         assert!(expand_home_prefix("~", None).is_err());
         assert!(validate_and_resolve_dir("relative/path").is_err());
+    }
+
+    #[test]
+    fn builds_and_validates_fill_field_requests() {
+        assert_eq!(normalize_gemini_endpoint("/api/gemini/fill-field"), Ok(GeminiEndpoint::FillField));
+        assert!(
+            build_gemini_request_body(
+                GeminiEndpoint::FillField,
+                &json!({ "field": "unknownField", "context": {} })
+            )
+            .is_err()
+        );
+        let body = build_gemini_request_body(
+            GeminiEndpoint::FillField,
+            &json!({
+                "field": "tagline",
+                "context": { "appName": "PulseVault", "coreIdea": "Local vault" }
+            }),
+        )
+        .unwrap();
+        assert_eq!(body["generationConfig"]["responseMimeType"], "application/json");
     }
 }

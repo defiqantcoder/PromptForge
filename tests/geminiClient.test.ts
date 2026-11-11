@@ -91,11 +91,18 @@ test('geminiClient routes through Express fetch in browser mode and Tauri IPC in
     const nativeGrill = await generateGrillQuestions(DEFAULT_PROJECT_STATE);
     assert.deepEqual(nativeGrill, { questions: [] });
 
-    assert.equal(invokedCalls.length, 2);
+    const { fillFieldWithAi } = await import('../src/services/geminiClient.ts');
+    await fillFieldWithAi('tagline', DEFAULT_PROJECT_STATE);
+
+    assert.equal(invokedCalls.length, 3);
     assert.equal(invokedCalls[0].cmd, 'gemini_proxy_request');
     assert.equal((invokedCalls[0].args as any).endpoint, '/api/gemini/random-idea');
     assert.equal(invokedCalls[1].cmd, 'gemini_proxy_request');
     assert.equal((invokedCalls[1].args as any).endpoint, '/api/gemini/grill');
+    assert.equal(invokedCalls[2].cmd, 'gemini_proxy_request');
+    assert.equal((invokedCalls[2].args as any).endpoint, '/api/gemini/fill-field');
+    assert.equal((invokedCalls[2].args as any).payload.field, 'tagline');
+    assert.equal((invokedCalls[2].args as any).payload.context.appName, DEFAULT_PROJECT_STATE.appName);
   } finally {
     if (originalWindow === undefined) {
       delete (globalThis as any).window;
