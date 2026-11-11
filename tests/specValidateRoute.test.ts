@@ -2,11 +2,21 @@ import assert from 'node:assert/strict';
 import { once } from 'node:events';
 import { test } from 'node:test';
 import { createApp } from '../server.ts';
+import { findUnresolvedTokens } from '../server/specValidateRoute.ts';
 import { ProjectState } from '../src/types/project.js';
 
-test('specValidateRoute: validates project state and identifies missing elements', async () => {
+test('specValidateRoute: validates project state and identifies missing elements', async (t) => {
+  const previousNodeEnv = process.env.NODE_ENV;
+  t.after(() => {
+    if (previousNodeEnv === undefined) delete process.env.NODE_ENV;
+    else process.env.NODE_ENV = previousNodeEnv;
+  });
+  process.env.NODE_ENV = 'production';
   const app = await createApp();
   const server = app.listen(0, '127.0.0.1');
+  t.after(() => new Promise<void>((resolve, reject) => {
+    server.close(error => error ? reject(error) : resolve());
+  }));
   await once(server, 'listening');
   const address = server.address();
   assert.ok(address && typeof address !== 'string');
@@ -28,7 +38,7 @@ test('specValidateRoute: validates project state and identifies missing elements
       securityBoundary: 'Local',
       taskSlicingMode: 'hitl-first',
       customRules: [],
-      templateVariables: {}
+      templateVariables: { primary_model: 'model', target_os: 'Linux', export_dir: '/tmp/export', accent_color: 'violet' }
     },
     workflowProgress: {
       stitchDone: true,
@@ -38,7 +48,6 @@ test('specValidateRoute: validates project state and identifies missing elements
     lastUpdated: new Date().toISOString()
   };
 
-  try {
     // Test 1: Complete valid payload
     const res1 = await fetch(`${base}/api/specs/validate`, {
       method: 'POST',
@@ -81,7 +90,7 @@ test('specValidateRoute: validates project state and identifies missing elements
       coreIdea: 'My app is {{app_type}} with {{missing}}',
       proConfig: {
         ...validProject.proConfig,
-        templateVariables: { app_type: 'app_type', missing: 'missing' }
+        templateVariables: { ...validProject.proConfig.templateVariables, app_type: 'desktop' }
       }
     };
     const res4 = await fetch(`${base}/api/specs/validate`, {
@@ -109,7 +118,53 @@ test('specValidateRoute: validates project state and identifies missing elements
       body: JSON.stringify({})
     });
     assert.equal(res6.status, 400);
-  } finally {
-    server.close();
+    assert.match(data4.warnings.find((w: any) => w.code === 'UNRESOLVED_TOKENS').message, /missing/);
+    assert.doesNotMatch(data4.warnings.find((w: any) => w.code === 'UNRESOLVED_TOKENS').message, /app_type/);
+
+    const validate = async (payload: unknown) => {
+      const response = await fetch(`${base}/api/specs/validate`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+      });
+      return { status: response.status, data: await response.json() };
+    };
+    const substituted = await validate({ ...tokensProject, coreIdea: '{{app_type}}',
+      proConfig: { ...tokensProject.proConfig, customRules: ['Use {{app_type}}'] } });
+    assert.equal(substituted.data.warnings.length, 0);
+    for (const payload of [
+      { ...validProject, coreIdea: 'No raw tokens', tagline: '{{compiled_only}}' },
+      { coreIdea: '{{unknown}}', proConfig: { customRules: ['{{custom_missing}}'] } },
+      { ...validProject, coreIdea: '{{app_type}}', proConfig: { ...validProject.proConfig,
+        templateVariables: { ...validProject.proConfig.templateVariables, app_type: '{{target_os}}' } } }
+    ]) {
+      const result = await validate(payload);
+      assert.equal(result.status, 200);
+      assert.ok(result.data.warnings.some((w: any) => w.code === 'UNRESOLVED_TOKENS'));
+    }
+    for (const payload of [[], [validProject], {},
+      ...['appName', 'coreIdea', 'tagline', 'codingLanguageNote', 'targetPlatform', 'codingLanguage'].map(key => ({ ...validProject, [key]: 42 })),
+      ...[null, {}, 'feature', [null], [42]].map(features => ({ ...validProject, features })),
+      ...[null, [], 'config', { customRules: 'rule' }, { customRules: [1] },
+        { templateVariables: [] }, { templateVariables: { key: 1 } }, { stackSummary: {} }]
+        .map(proConfig => ({ ...validProject, proConfig })),
+      { ...validProject, workflowProgress: { stitchDone: 'false' } },
+      { ...validProject, groundRules: { offlineFirst: 'true' } },
+      { ...validProject, stitchUi: { visualDirection: 42 } },
+      ...[{}, [null], [{ id: 'a', category: 'b', question: 'c', options: null }]]
+        .map(clarifications => ({ ...validProject, clarifications }))
+    ]) {
+      const result = await validate(payload);
+      assert.equal(result.status, 400, JSON.stringify(payload));
+      assert.equal(typeof result.data.error, 'string');
+    }
+
+});
+
+test('token scanner preserves extraction and handles large malformed input', { timeout: 2000 }, () => {
+  for (const text of ['{{one}} {{ two }} {{one}}', '{{{nested}}', '{{}} {{ }}',
+    '{{bad} {{good}}', '{{{{a}x{{b}}', 'prefix {{unfinished', 'no tokens']) {
+    const expected = (text.match(/\{\{([^}]+)\}\}/g) || []).map(token => token.slice(2, -2).trim());
+    assert.deepEqual(findUnresolvedTokens(text), expected);
   }
+  assert.deepEqual(findUnresolvedTokens('{{'.repeat(500_000)), []);
+  assert.deepEqual(findUnresolvedTokens('{{'.repeat(500_000) + '}'), []);
 });

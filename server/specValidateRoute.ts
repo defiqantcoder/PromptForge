@@ -5,6 +5,7 @@ import {
   compilePlanMd,
   compileTasksMd,
   compileAgentsMd,
+  interpolateVariables,
 } from '../src/services/compiler.js';
 
 interface ValidationWarning {
@@ -19,20 +20,69 @@ interface ValidationResult {
   warnings: ValidationWarning[];
 }
 
-function findUnresolvedTokens(text: string, templateVariables: Record<string, string> = {}): string[] {
-  const tokens = text.match(/\{\{([^}]+)\}\}/g) || [];
-  return tokens
-    .map(t => t.slice(2, -2).trim())
-    .filter(t => t in templateVariables);
+// Advance past each closing brace (or the end) once, even for malformed openers.
+export function findUnresolvedTokens(text: string): string[] {
+  const tokens: string[] = [];
+  let cursor = 0;
+  while (cursor < text.length) {
+    const start = text.indexOf('{{', cursor);
+    if (start === -1) break;
+    const end = text.indexOf('}', start + 2);
+    if (end === -1) break;
+    if (end > start + 2 && text[end + 1] === '}') {
+      tokens.push(text.slice(start + 2, end).trim());
+      cursor = end + 2;
+    } else {
+      cursor = end + 1;
+    }
+  }
+  return tokens;
+}
+
+type JsonObject = Record<string, unknown>;
+const isObject = (value: unknown): value is JsonObject =>
+  value !== null && typeof value === 'object' && !Array.isArray(value);
+const isString = (value: unknown) => typeof value === 'string';
+const isBoolean = (value: unknown) => typeof value === 'boolean';
+const isStringArray = (value: unknown) => Array.isArray(value) && value.every(isString);
+
+function optionalFields(object: JsonObject, fields: string[], check: (value: unknown) => boolean): boolean {
+  return fields.every(key => !(key in object) || check(object[key]));
+}
+
+// Missing fields remain eligible for completeness warnings; present fields must be safe to consume.
+function isValidationPayload(value: unknown): value is Partial<ProjectState> {
+  if (!isObject(value) || Object.keys(value).length === 0) return false;
+  if (!optionalFields(value, ['appName', 'coreIdea', 'tagline', 'targetPlatform', 'codingLanguage', 'codingLanguageNote'], isString)
+    || !optionalFields(value, ['features'], isStringArray)) return false;
+  if ('groundRules' in value && (!isObject(value.groundRules)
+    || !optionalFields(value.groundRules, ['offlineFirst', 'highPerformance', 'localPrivacy', 'darkModeDefault'], isBoolean))) return false;
+  if ('workflowProgress' in value && (!isObject(value.workflowProgress)
+    || !optionalFields(value.workflowProgress, ['stitchDone', 'builderDone', 'polishDone'], isBoolean))) return false;
+  if ('stitchUi' in value && (!isObject(value.stitchUi)
+    || !optionalFields(value.stitchUi, ['visualDirection', 'uploadedResultName'], isString))) return false;
+  if ('proConfig' in value) {
+    const config = value.proConfig;
+    if (!isObject(config)
+      || !optionalFields(config, ['stackSummary', 'architectureStyle', 'testingStrategy', 'securityBoundary', 'taskSlicingMode'], isString)
+      || !optionalFields(config, ['customRules'], isStringArray)
+      || !optionalFields(config, ['templateVariables'], vars => isObject(vars) && Object.values(vars).every(isString))) return false;
+  }
+  if ('clarifications' in value && (!Array.isArray(value.clarifications)
+    || !value.clarifications.every(item => isObject(item)
+      && ['id', 'category', 'question'].every(key => isString(item[key]))
+      && isStringArray(item.options)
+      && optionalFields(item, ['selectedAnswer'], isString)))) return false;
+  return true;
 }
 
 export function registerSpecValidateRoute(app: Application) {
   app.post('/api/specs/validate', (req: Request, res: Response) => {
-    if (!req.body || typeof req.body !== 'object' || Object.keys(req.body).length === 0) {
+    if (!isValidationPayload(req.body)) {
       return res.status(400).json({ error: 'Invalid or missing JSON payload' });
     }
 
-    const state = req.body as Partial<ProjectState>;
+    const state = req.body;
     const warnings: ValidationWarning[] = [];
 
     if (!state.appName || state.appName.trim() === '' || state.appName === 'My Awesome App') {
@@ -62,15 +112,15 @@ export function registerSpecValidateRoute(app: Application) {
 
     // Token check
     const templateVars = state.proConfig?.templateVariables || {};
-    let unresolvedTokens = new Set<string>();
+    const unresolvedTokens = new Set<string>();
 
     const checkTokens = (text: string) => {
-      findUnresolvedTokens(text, templateVars).forEach(t => unresolvedTokens.add(t));
+      findUnresolvedTokens(text).forEach(t => unresolvedTokens.add(t));
     };
 
-    if (state.coreIdea) checkTokens(state.coreIdea);
+    if (state.coreIdea) checkTokens(interpolateVariables(state.coreIdea, templateVars));
     if (state.proConfig?.customRules) {
-      state.proConfig.customRules.forEach(rule => checkTokens(rule));
+      state.proConfig.customRules.forEach(rule => checkTokens(interpolateVariables(rule, templateVars)));
     }
 
     // Note: We need a somewhat valid state to compile, compiler expects certain fields

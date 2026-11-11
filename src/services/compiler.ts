@@ -15,7 +15,7 @@ export function getCodingLanguageLabel(state: ProjectState): string {
   return note ? `${base} (${note})` : base;
 }
 
-function interpolateVariables(text: string, vars: Record<string, string>): string {
+export function interpolateVariables(text: string, vars: Record<string, string>): string {
   if (!vars) return text;
   return text.replace(/\{\{(\w+)\}\}/g, (match, key) => {
     return vars[key] !== undefined ? vars[key] : match;
