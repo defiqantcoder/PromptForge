@@ -583,6 +583,147 @@ fn set_secure_key(_service: String, key: String) -> Result<(), String> {
   return interpolateVariables(raw, state.proConfig.templateVariables);
 }
 
+export function compileUserGuideMd(state: ProjectState): string {
+  const safeAppName = state.appName || 'MyApplication';
+  const langLabel = getCodingLanguageLabel(state);
+  const raw = `# ${safeAppName} — Master User Implementation Handbook & Prompt Playbook
+
+> **Audience**: This guide is written directly for **you, the developer/creator**, rather than an AI agent. It details exactly **when**, **where**, and **how** to use each prompt, where to place each generated file, and how to drive the build from initial UI sketches to production deployment.
+
+---
+
+## 1. File Placement & Repository Directory Layout
+
+When exporting or extracting your PromptForge specification bundle, place the files in your project repository as follows:
+
+\`\`\`text
+${safeAppName.toLowerCase().replace(/\s+/g, '-')}/
+├── spec.md                   # Product scope, user personas & EARS functional requirements
+├── plan.md                   # System architecture, data schemas, IPC contracts & testing matrix
+├── tasks.md                  # Numbered step-by-step implementation tasks & verification steps
+├── AGENTS.md                 # Universal coding instructions, repository rules & constraints
+├── GEMINI.md                 # Gemini CLI workspace instructions & terminal rules
+├── USER_GUIDE.md             # (This file) Human developer handbook & prompt runbook
+├── COLLABORATION.md          # Multi-agent coordination board & directory ownership boundaries
+├── .continuerules            # Local AI / Continue IDE assistant configuration
+└── src/                      # Your application source code
+\`\`\`
+
+---
+
+## 2. The 4-Stage Build Workflow: When & Where to Use Prompts
+
+PromptForge generates specialized contracts tailored for each phase of your build. Follow this sequence:
+
+### Stage 1: Visual Design with Google Stitch
+- **When**: Start here BEFORE writing backend code or complex state logic.
+- **Where**: Open [Google Stitch](https://stitch.withgoogle.com/).
+- **How to Use**:
+  1. In PromptForge, open the **Exporter Deck** or **Stitch UI Studio** (Deck 05).
+  2. Select the **Google Stitch** prompt tab and click **Copy Complete Google Stitch UI Prompt**.
+  3. Paste the prompt into Google Stitch to generate high-fidelity glassmorphic screens and components.
+  4. Download the generated HTML/CSS/ZIP export or capture visual screenshots.
+  5. Back in PromptForge, drop your Stitch export into Stage 1b **"Upload What Stitch Built"** so subsequent builder prompts inherit the exact markup and classes.
+
+### Stage 2: Full-Stack Implementation with Your Primary Builder
+Choose your primary builder tool:
+- **Option A: Google Gemini CLI**
+  - **When**: When you want interactive terminal coding with direct command execution and file edits.
+  - **Where**: Terminal / shell where \`gemini\` CLI is installed.
+  - **How**: Run \`gemini "Read GEMINI.md, spec.md, plan.md, and tasks.md. Implement Task 1."\` or copy the **Gemini CLI Prompt** from the Exporter Deck.
+- **Option B: Google Antigravity (AGY)**
+  - **When**: When you want an autonomous multi-file terminal agent that writes code and runs verification gates.
+  - **Where**: Terminal / Antigravity CLI or Antigravity IDE.
+  - **How**: Run your Antigravity agent in the repository root. Antigravity reads \`AGENTS.md\`, \`spec.md\`, \`plan.md\`, and \`tasks.md\` automatically.
+- **Option C: Google AI Studio**
+  - **When**: When building a web application with full-stack React + Express + server-side \`@google/genai\` routes.
+  - **Where**: [Google AI Studio](https://aistudio.google.com/).
+  - **How**: Paste the **AI Studio Full-Stack Contract** into AI Studio's Build workspace.
+- **Option D: GitHub Copilot / Cursor**
+  - **When**: When coding inside VS Code / JetBrains / Cursor.
+  - **Where**: Place \`AGENTS.md\` or \`.github/copilot-instructions.md\` in the project root.
+  - **How**: Open Copilot Edits or Cursor Composer and reference \`@tasks.md\` and \`@plan.md\`.
+
+### Stage 3: Offline & Local AI Refactoring (Ollama + Continue)
+- **When**: For offline coding, zero-cost refactoring, documentation generation, or private enterprise work.
+- **Where**: Local IDE with the **Continue** extension connected to local **Ollama** (\`http://localhost:11434\`).
+- **How**: Ensure \`.continuerules\` is in the root directory. Continue automatically loads your project ground rules and context.
+
+### Stage 4: Multi-Agent Parallel Handoffs
+- **When**: When running multiple AI coding agents simultaneously on different parts of the project.
+- **Where**: Reference \`COLLABORATION.md\`.
+- **How**: Assign each agent to its designated **Work-On Path** (e.g., Agent 1 on UI components, Agent 2 on backend IPC). Verify that neither agent touches the other's **Stay-Away Paths** to prevent git merge conflicts.
+
+---
+
+## 3. Step-by-Step Execution Checklist
+
+1. [ ] **Export the Bundle**: In PromptForge, click **"Export Spec Bundle"** (Alt+S) and save files to your repository root.
+2. [ ] **Inspect \`tasks.md\`**: Review the ordered implementation milestones.
+3. [ ] **Run Initial Verification**: Confirm baseline compiler / linter commands work (e.g., \`npm run build\` or \`cargo check\`).
+4. [ ] **Execute Tasks Sequentially**: Feed one task slice at a time to your builder agent.
+5. [ ] **Verify After Each Task**: Run the specified automated verification commands in \`tasks.md\` before marking any task as complete.
+
+---
+
+## 4. Key Security & Quality Rules
+
+- **Offline-First & Local Privacy**: Do not hardcode API keys or credentials in source code. Use system keyring or environment variables (\`GEMINI_API_KEY\`).
+- **Path Canonicalization**: When reading or writing user files, reject path traversal attempts containing \`..\`.
+- **Latency Standards**: Maintain responsive UI feedback (under 200ms) with tabular numerals for data metrics.
+`;
+  return interpolateVariables(raw, state.proConfig.templateVariables);
+}
+
+export function compileGeminiMd(state: ProjectState): string {
+  const safeAppName = state.appName || 'MyApplication';
+  const langLabel = getCodingLanguageLabel(state);
+  const safeFeatures = (state.features || []).map(f => f.trim()).filter(Boolean);
+  const featuresList = safeFeatures.length > 0
+    ? safeFeatures.map(f => `- ${f}`).join('\n')
+    : '- Core feature set defined in spec.md';
+
+  const raw = `# ${safeAppName} — Gemini CLI Workspace Instructions
+
+Always follow the project specifications and rules in:
+- [spec.md](./spec.md)
+- [plan.md](./plan.md)
+- [tasks.md](./tasks.md)
+- [AGENTS.md](./AGENTS.md)
+- [USER_GUIDE.md](./USER_GUIDE.md)
+
+## Workspace Overview
+- **Application Name**: ${safeAppName}
+- **Tagline**: ${state.tagline || 'No tagline'}
+- **Target Platform**: ${PLATFORM_LABELS[state.targetPlatform]}
+- **Coding Language**: ${langLabel}
+- **Architecture**: ${state.proConfig.architectureStyle}
+- **Security Boundary**: ${state.proConfig.securityBoundary}
+
+## Core Features
+${featuresList}
+
+## Gemini CLI Execution Invariants
+- Execute tasks incrementally following the task sequence in \`tasks.md\`. Do not skip verification steps.
+- Maintain strict local privacy: never leak API keys, system paths, or uncommitted credentials.
+- After every file edit or feature implementation, execute the relevant verification command:
+  - Type checking & compilation
+  - Linter & formatting checks
+  - Unit & integration tests
+- Check git status and keep working copy clean before transitioning between tasks.
+
+## CLI Usage Examples
+\`\`\`bash
+# Bootstrap the project according to plan.md:
+gemini "Read GEMINI.md, spec.md, and plan.md. Set up project scaffolding."
+
+# Implement a specific task slice:
+gemini "Read tasks.md and implement Task 1.1 with tests. Verify compilation before finishing."
+\`\`\`
+`;
+  return interpolateVariables(raw, state.proConfig.templateVariables);
+}
+
 export function compileSpecFile(state: ProjectState, fileId: SpecFileId): string {
   switch (fileId) {
     case 'spec.md':
@@ -593,6 +734,10 @@ export function compileSpecFile(state: ProjectState, fileId: SpecFileId): string
       return compileTasksMd(state);
     case 'AGENTS.md':
       return compileAgentsMd(state);
+    case 'GEMINI.md':
+      return compileGeminiMd(state);
+    case 'USER_GUIDE.md':
+      return compileUserGuideMd(state);
     case 'COLLABORATION.md':
       return compileCollaborationMd(state);
     case '.continuerules':
@@ -765,6 +910,45 @@ ${featuresBullets}
       };
     }
 
+    case 'gemini-cli': {
+      const promptText = interpolateVariables(
+        `# Google Gemini CLI Implementation Contract — ${state.appName}
+
+You are working in the terminal with the Google Gemini CLI on **${state.appName}** (${state.tagline || 'No tagline'}) targeting **${PLATFORM_LABELS[state.targetPlatform]}** with **${codingLanguageLabel}**.
+
+## Project Context & Rules
+Read and adhere to the repository configuration files:
+- \`GEMINI.md\` — Workspace rules and execution invariants
+- \`spec.md\` — Behavioral product requirements
+- \`plan.md\` — Architecture, domain types, and data flow
+- \`tasks.md\` — Ordered implementation tasks and verification gates
+- \`USER_GUIDE.md\` — Developer runbook and file organization
+
+## Core Interactive Features
+${featuresBullets}
+
+## Architecture & Guardrails
+- **Language / Stack**: ${codingLanguageLabel} · ${state.proConfig.stackSummary}
+- **Quality Rules**:
+${rulesSummaryFallback}
+- **Custom Conventions**:
+${customRulesSummary}
+${stitchResultContext}
+## Terminal Execution Directive
+1. Inspect the workspace and read \`tasks.md\` to identify the next unfinished milestone.
+2. Implement required code changes adhering to \`GEMINI.md\` constraints.
+3. Run verification commands to ensure zero compiler warnings, errors, or broken tests.
+4. Report completed task checklist items cleanly.`,
+        state.proConfig.templateVariables
+      );
+      return {
+        title: 'Google Gemini CLI',
+        subtitle: 'Terminal AI coder executing multi-file tasks and verification with GEMINI.md',
+        badge: 'Terminal CLI Coder',
+        promptText,
+      };
+    }
+
     case 'copilot': {
       const promptText = interpolateVariables(
         `# GitHub Copilot Workspace & Repository Instructions — ${state.appName}
@@ -879,6 +1063,8 @@ export function generateDefaultWorkflowPlan(state: ProjectState, nextAppId?: Exp
   const appLabel =
     chosenApp === 'antigravity'
       ? 'Google Antigravity (AGY)'
+      : chosenApp === 'gemini-cli'
+      ? 'Google Gemini CLI'
       : chosenApp === 'aistudio'
       ? 'Google AI Studio'
       : chosenApp === 'local-ollama'
@@ -933,6 +1119,7 @@ export function recommendBuildWorkflow(state: ProjectState): GuidedWorkflowRecom
 
   const APP_URLS: Record<ExportPlatformId, string> = {
     antigravity: 'https://antigravity.google/',
+    'gemini-cli': 'https://github.com/google-gemini/gemini-cli',
     aistudio: 'https://aistudio.google.com/',
     copilot: 'https://github.com/features/copilot',
     canvas: 'https://gemini.google.com/app',

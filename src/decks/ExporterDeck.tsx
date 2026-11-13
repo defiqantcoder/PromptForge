@@ -35,6 +35,7 @@ const PLATFORMS: Array<{
   secondary?: boolean;
 }> = [
   { id: 'stitch', label: 'Google Stitch', tooltipKey: 'platform-stitch' },
+  { id: 'gemini-cli', label: 'Google Gemini CLI', tooltipKey: 'platform-gemini-cli' },
   { id: 'aistudio', label: 'Google AI Studio', tooltipKey: 'platform-aistudio' },
   { id: 'antigravity', label: 'Google Antigravity (AGY)', tooltipKey: 'platform-antigravity' },
   { id: 'canvas', label: 'Gemini Canvas', tooltipKey: 'platform-canvas' },

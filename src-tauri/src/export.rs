@@ -55,6 +55,8 @@ pub(crate) fn save_spec_bundle_to_dir(
         "spec.md",
         "plan.md",
         "tasks.md",
+        "GEMINI.md",
+        "USER_GUIDE.md",
         "COLLABORATION.md",
         ".continuerules",
     ];
@@ -141,9 +143,13 @@ mod tests {
         let mut good_files = HashMap::new();
         good_files.insert("AGENTS.md".to_string(), "# Agents".to_string());
         good_files.insert("spec.md".to_string(), "# Spec".to_string());
+        good_files.insert("GEMINI.md".to_string(), "# Gemini".to_string());
+        good_files.insert("USER_GUIDE.md".to_string(), "# Guide".to_string());
         assert_eq!(save_spec_bundle_to_dir(dir_str.clone(), good_files), Ok(true));
         assert_eq!(fs::read_to_string(test_dir.join("AGENTS.md")).unwrap(), "# Agents");
         assert_eq!(fs::read_to_string(test_dir.join("spec.md")).unwrap(), "# Spec");
+        assert_eq!(fs::read_to_string(test_dir.join("GEMINI.md")).unwrap(), "# Gemini");
+        assert_eq!(fs::read_to_string(test_dir.join("USER_GUIDE.md")).unwrap(), "# Guide");
 
         let _ = fs::remove_dir_all(&test_dir);
     }

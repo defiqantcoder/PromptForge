@@ -143,6 +143,11 @@ export const TOOLTIP_DICTIONARY: Record<string, TooltipEntry> = {
     description: 'Structured around phased HITL/AFK task execution, verification commands, and strict file boundary rules.',
     aiUsage: 'Ideal for autonomous multi-file engineering and native Tauri desktop compilation in Antigravity.',
   },
+  'platform-gemini-cli': {
+    title: 'Google Gemini CLI Terminal Contract',
+    description: 'Formats prompts and repository guardrails directly for the Google Gemini CLI with automated command execution and GEMINI.md rules.',
+    aiUsage: 'Run in your terminal with the gemini CLI to bootstrap files and implement tasks step-by-step.',
+  },
   'platform-copilot': {
     title: 'GitHub Copilot Workspace Instructions',
     description: 'Formatted as concise repository-level coding conventions, test assertions, and step-by-step file tasks.',

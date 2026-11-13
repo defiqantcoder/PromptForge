@@ -261,6 +261,16 @@ export const WORKSTATION_PAGES: WorkstationPageConfig[] = [
 
 const SPEC_FILES: Array<{ id: SpecFileId; label: string; desc: string }> = [
   {
+    id: 'USER_GUIDE.md',
+    label: 'USER_GUIDE.md',
+    desc: 'Master user handbook: when, where & how to use prompts and organize files',
+  },
+  {
+    id: 'GEMINI.md',
+    label: 'GEMINI.md',
+    desc: 'Gemini CLI workspace context, guardrails, commands & architecture',
+  },
+  {
     id: 'AGENTS.md',
     label: 'AGENTS.md',
     desc: '10-section persistent AI coding instructions & repository rules',
@@ -299,6 +309,7 @@ const SPEC_FILES: Array<{ id: SpecFileId; label: string; desc: string }> = [
 
 const PLATFORM_TABS: Array<{ id: ExportPlatformId; label: string }> = [
   { id: 'stitch', label: 'Stitch' },
+  { id: 'gemini-cli', label: 'Gemini CLI' },
   { id: 'aistudio', label: 'AI Studio' },
   { id: 'antigravity', label: 'Antigravity' },
   { id: 'canvas', label: 'Canvas' },
@@ -1156,13 +1167,13 @@ export function App() {
                     lastUpdated: new Date().toISOString(),
                   }));
                 }}
-                className="bg-transparent text-xs font-medium text-[#E9D5FF] focus:outline-none cursor-pointer pr-1"
+                className="bg-[#141120] text-xs font-semibold text-white focus:outline-none cursor-pointer pr-1"
               >
                 {AI_MODELS.map((m) => (
                   <option
                     key={m.id}
                     value={m.id}
-                    className="bg-[#141122] text-white"
+                    className="bg-[#181427] text-white py-1"
                   >
                     {m.label} ({m.speedTag})
                   </option>

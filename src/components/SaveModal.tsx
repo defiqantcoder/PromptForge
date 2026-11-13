@@ -17,9 +17,11 @@ import {
   compileAgentsMd,
   compileCollaborationMd,
   compileContinueRules,
+  compileGeminiMd,
   compilePlanMd,
   compileSpecMd,
   compileTasksMd,
+  compileUserGuideMd,
 } from '../services/compiler';
 import { HelpBadge, LabelWithTooltip } from './Tooltip';
 import {
@@ -72,6 +74,8 @@ export function SaveModal({ open, onOpenChange, state }: SaveModalProps) {
   }, [open, isNativeDesktop]);
 
   const compiledFiles: Record<string, string> = {
+    'USER_GUIDE.md': compileUserGuideMd(state),
+    'GEMINI.md': compileGeminiMd(state),
     'AGENTS.md': compileAgentsMd(state),
     'spec.md': compileSpecMd(state),
     'plan.md': compilePlanMd(state),

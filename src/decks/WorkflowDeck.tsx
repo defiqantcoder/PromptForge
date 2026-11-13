@@ -740,10 +740,10 @@ export function WorkflowDeck({
                           aria-label={`Surface type for ${screen.name}`}
                           className="px-2.5 py-1.5 rounded-lg bg-[#141122] border border-[#C084FC]/25 text-xs text-[#E9D5FF] focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]"
                         >
-                          <option value="screen">Screen</option>
-                          <option value="menu">Menu / Nav</option>
-                          <option value="modal">Modal / Dialog</option>
-                          <option value="component">Component</option>
+                          <option value="screen" className="bg-[#181427] text-white">Screen</option>
+                          <option value="menu" className="bg-[#181427] text-white">Menu / Nav</option>
+                          <option value="modal" className="bg-[#181427] text-white">Modal / Dialog</option>
+                          <option value="component" className="bg-[#181427] text-white">Component</option>
                         </select>
                         <FillWithAiButton
                           fieldLabel={`${screen.name} Notes`}
@@ -1109,9 +1109,9 @@ export function WorkflowDeck({
                       }
                       className="w-full px-3 py-2 rounded-lg bg-[#141122] border border-[#C084FC]/25 text-xs text-white focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]"
                     >
-                      <option value="both">Ollama + Continue (.continuerules)</option>
-                      <option value="ollama">Ollama CLI Only</option>
-                      <option value="continue">Continue IDE Extension Only</option>
+                      <option value="both" className="bg-[#181427] text-white">Ollama + Continue (.continuerules)</option>
+                      <option value="ollama" className="bg-[#181427] text-white">Ollama CLI Only</option>
+                      <option value="continue" className="bg-[#181427] text-white">Continue IDE Extension Only</option>
                     </select>
                   </div>
 
@@ -1144,11 +1144,11 @@ export function WorkflowDeck({
                       className="w-full px-3 py-2 rounded-lg bg-[#141122] border border-[#C084FC]/25 text-xs text-white focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]"
                     >
                       {OLLAMA_MODEL_PRESETS.map((preset) => (
-                        <option key={preset} value={preset}>
+                        <option key={preset} value={preset} className="bg-[#181427] text-white">
                           {preset}
                         </option>
                       ))}
-                      <option value="custom">Custom Ollama Tag</option>
+                      <option value="custom" className="bg-[#181427] text-white">Custom Ollama Tag</option>
                     </select>
                   </div>
                 </div>
@@ -1347,11 +1347,11 @@ export function WorkflowDeck({
                               })
                             }
                             aria-label={`Status for ${lane.agentName}`}
-                            className="px-2 py-1 rounded-md bg-[#0B0D12] border border-[#C084FC]/20 text-[11px] text-[#E9D5FF]"
+                            className="px-2 py-1 rounded-md bg-[#141120] border border-[#C084FC]/25 text-[11px] text-[#E9D5FF]"
                           >
-                            <option value="ready">Ready</option>
-                            <option value="in-progress">In Progress</option>
-                            <option value="done">Done</option>
+                            <option value="ready" className="bg-[#181427] text-white">Ready</option>
+                            <option value="in-progress" className="bg-[#181427] text-white">In Progress</option>
+                            <option value="done" className="bg-[#181427] text-white">Done</option>
                           </select>
                           <button
                             type="button"

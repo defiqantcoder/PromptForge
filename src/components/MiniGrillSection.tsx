@@ -88,8 +88,8 @@ export function MiniGrillPanel({
                 {q.category}
               </span>
               {q.selectedAnswer && (
-                <span className="inline-flex items-center gap-1 text-[10px] text-emerald-400">
-                  <Check className="w-3 h-3" /> Selected
+                <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-400 bg-emerald-950/40 px-2 py-0.5 rounded-full border border-emerald-500/30">
+                  <Check className="w-3 h-3 text-emerald-400" /> Applied to Section
                 </span>
               )}
             </div>

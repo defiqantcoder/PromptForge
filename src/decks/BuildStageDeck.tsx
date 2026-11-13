@@ -64,6 +64,13 @@ const BUILDER_APPS: Array<{
   url: string;
 }> = [
   {
+    id: 'gemini-cli',
+    label: 'Google Gemini CLI',
+    badge: 'Terminal · CLI Coder · GEMINI.md',
+    summary: 'Direct terminal AI assistant executing commands, code edits, and verification with GEMINI.md context.',
+    url: 'https://github.com/google-gemini/gemini-cli',
+  },
+  {
     id: 'antigravity',
     label: 'Google Antigravity (AGY)',
     badge: 'Desktop · Native · Terminal',

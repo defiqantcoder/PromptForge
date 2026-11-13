@@ -26,6 +26,7 @@ export type ExportPlatformId =
   | 'stitch'
   | 'aistudio'
   | 'antigravity'
+  | 'gemini-cli'
   | 'canvas'
   | 'local-ollama'
   | 'copilot';
@@ -35,6 +36,8 @@ export type SpecFileId =
   | 'plan.md'
   | 'tasks.md'
   | 'AGENTS.md'
+  | 'GEMINI.md'
+  | 'USER_GUIDE.md'
   | 'COLLABORATION.md'
   | '.continuerules'
   | 'src-tauri/src/lib.rs';

@@ -163,9 +163,9 @@ export function LocalAgentsDeck({
                 }
                 className="w-full px-3.5 py-2.5 rounded-xl bg-[#141120] border border-[#C084FC]/25 text-xs font-medium text-white focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]"
               >
-                <option value="both">Continue Extension + Ollama Runtime (Recommended)</option>
-                <option value="continue">Continue IDE Extension Only</option>
-                <option value="ollama">Ollama Standalone Server</option>
+                <option value="both" className="bg-[#181427] text-white">Continue Extension + Ollama Runtime (Recommended)</option>
+                <option value="continue" className="bg-[#181427] text-white">Continue IDE Extension Only</option>
+                <option value="ollama" className="bg-[#181427] text-white">Ollama Standalone Server</option>
               </select>
             </div>
 
@@ -191,7 +191,7 @@ export function LocalAgentsDeck({
                 className="w-full px-3.5 py-2.5 rounded-xl bg-[#141120] border border-[#C084FC]/25 text-xs font-medium text-white focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]"
               >
                 {OLLAMA_MODEL_PRESETS.map((m) => (
-                  <option key={m} value={m}>
+                  <option key={m} value={m} className="bg-[#181427] text-white">
                     {m} {m.includes('14b') ? '(Recommended Balanced)' : ''}
                   </option>
                 ))}

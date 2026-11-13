@@ -252,11 +252,11 @@ export function MultiAgentDeck({
                           status: e.target.value as any,
                         })
                       }
-                      className="px-2 py-1 rounded-lg bg-[#0F0C1B] border border-[#C084FC]/20 text-xs text-[#34D399] font-mono focus:outline-none"
+                      className="px-2.5 py-1.5 rounded-lg bg-[#141120] border border-[#C084FC]/25 text-xs text-[#34D399] font-mono focus:outline-none"
                     >
-                      <option value="ready">READY</option>
-                      <option value="in-progress">IN-PROGRESS</option>
-                      <option value="done">DONE</option>
+                      <option value="ready" className="bg-[#181427] text-white">READY</option>
+                      <option value="in-progress" className="bg-[#181427] text-white">IN-PROGRESS</option>
+                      <option value="done" className="bg-[#181427] text-white">DONE</option>
                     </select>
 
                     <button

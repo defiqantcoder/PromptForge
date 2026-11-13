@@ -30,7 +30,7 @@ import { DEFAULT_STITCH_UI } from '../services/presets';
 import { FillFieldResponse } from '../services/geminiClient';
 import { DeckCard } from '../components/Card';
 import { FillWithAiButton } from '../components/FillWithAiButton';
-import { MiniGrillButton } from '../components/MiniGrillSection';
+import { MiniGrillButton, MiniGrillPanel } from '../components/MiniGrillSection';
 import { ExplainerTooltip, HelpBadge, LabelWithTooltip } from '../components/Tooltip';
 
 interface StitchStudioDeckProps {
@@ -534,60 +534,53 @@ export function StitchStudioDeck({
             <HelpBadge tooltipKey="platform-stitch" />
           </div>
 
-          {/* UI Clarification Questions if any */}
-          {stitchUi.uiClarifications.length > 0 && (
-            <div className="space-y-3 pt-3 border-t border-[#8B5CF6]/20">
-              <div className="text-xs font-semibold text-white">
-                Confirmed UI & Visual Decisions (UI Grill Me):
-              </div>
-              <div className="space-y-2.5">
-                {stitchUi.uiClarifications.map((q) => (
-                  <div
-                    key={q.id}
-                    className="p-3.5 rounded-xl bg-[#141120] border border-[#C084FC]/20 space-y-2"
-                  >
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="font-semibold text-white">{q.question}</span>
-                      <span className="text-[10px] font-mono text-[#EC4899]">{q.category}</span>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {q.options.map((opt) => {
-                        const sel = (q.selectedAnswer || q.options[0]) === opt;
-                        return (
-                          <button
-                            key={opt}
-                            type="button"
-                            onClick={() => handleSelectUiClarification(q.id, opt)}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors cursor-pointer ${
-                              sel
-                                ? 'bg-[#8B5CF6]/25 border-[#8B5CF6] text-white'
-                                : 'bg-transparent border-[#C084FC]/20 text-[#CBC3D7] hover:border-[#C084FC]/40'
-                            }`}
-                          >
-                            {opt}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+          {/* UI Clarification Questions if any (Mini Grill UI) */}
+          <MiniGrillPanel
+            title="Sharpen UI & Visual Decisions"
+            questions={stitchUi.uiClarifications}
+            onSelectAnswer={(qId, opt) => handleSelectUiClarification(qId, opt)}
+            onApplyToSection={(q, opt) => {
+              const clean = opt.replace(/^\(Recommended\)\s*/i, '').trim();
+              const detail = `${q.category}: ${clean}`;
+              onUpdate((prev) => {
+                const cur = prev.stitchUi ?? DEFAULT_STITCH_UI;
+                if (cur.visualDirection.includes(detail)) return prev;
+                const sep = cur.visualDirection.trim() ? '\n' : '';
+                return {
+                  ...prev,
+                  stitchUi: {
+                    ...cur,
+                    visualDirection: `${cur.visualDirection.trim()}${sep}${detail}`,
+                  },
+                  lastUpdated: new Date().toISOString(),
+                };
+              });
+            }}
+            onClose={() => {
+              onUpdate((prev) => ({
+                ...prev,
+                stitchUi: {
+                  ...(prev.stitchUi ?? DEFAULT_STITCH_UI),
+                  uiClarifications: [],
+                },
+                lastUpdated: new Date().toISOString(),
+              }));
+            }}
+          />
         </section>
 
-        {/* Stage 1b: Upload Stitch Result & Screen/Menu Prompts */}
+        {/* Stage 1b: Dedicated Screen Prompts first, then Upload Stitch Result at the bottom */}
         <section className="p-5 sm:p-6 rounded-2xl bg-[#0F0C1B]/90 border border-[#8B5CF6]/35 space-y-6">
           <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-[#8B5CF6]/20">
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-xs font-mono uppercase tracking-wider text-[#A78BFA]">
-                  Stage 1b · Import Result & Screen Prompts
+                  Stage 1b · Multi-Screen Prompts & Handoff
                 </span>
-                <HelpBadge tooltipKey="stitch-result-upload" />
+                <HelpBadge tooltipKey="stitch-multi-screen" />
               </div>
               <h3 className="text-base sm:text-lg font-bold text-white">
-                Stitch Result Handoff & Multi-Screen Studio
+                Dedicated Screen Prompts & Stitch Handoff Studio
               </h3>
             </div>
 
@@ -602,80 +595,6 @@ export function StitchStudioDeck({
               </button>
               <HelpBadge tooltipKey="stitch-multi-screen" />
             </div>
-          </div>
-
-          {/* Upload Stitch Result Dropzone / File Picker */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between gap-2">
-              <LabelWithTooltip
-                label="Upload What Stitch Built (HTML, ZIP, Screenshot, or Code)"
-                tooltipKey="stitch-result-upload"
-              />
-              {stitchUi.uploadedResultName && (
-                <span className="inline-flex items-center gap-1 text-xs font-medium text-[#34D399]">
-                  <CheckCircle2 className="w-3.5 h-3.5" />
-                  <span>{stitchUi.uploadedResultName} attached</span>
-                </span>
-              )}
-            </div>
-
-            <div className="flex flex-wrap items-center gap-3 p-4 rounded-xl border border-dashed border-[#8B5CF6]/40 bg-[#141120]">
-              <button
-                type="button"
-                onClick={() => stitchResultInputRef.current?.click()}
-                className="pf-btn-secondary inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold cursor-pointer"
-              >
-                <Upload className="w-4 h-4 text-[#A78BFA]" />
-                <span>Upload Stitch Export</span>
-              </button>
-              <input
-                ref={stitchResultInputRef}
-                type="file"
-                onChange={(e) => void handleUploadStitchResult(e.target.files)}
-                className="hidden"
-              />
-              <span className="text-xs text-[#CBC3D7]">
-                Importing your Stitch output enables full-stack builders to wire state and handlers directly onto the exact layout.
-              </span>
-            </div>
-          </div>
-
-          {/* Stitch Result Handoff Notes */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between gap-2">
-              <LabelWithTooltip
-                label="Stitch Result Handoff Notes"
-                tooltipKey="uploadedResultNotes"
-                htmlFor="textarea-result-notes"
-              />
-              <FillWithAiButton
-                fieldLabel="Handoff Notes"
-                loading={fillingField === 'uploadedResultNotes'}
-                disabled={fillingField === 'uploadedResultNotes'}
-                onClick={() =>
-                  void onFillField('uploadedResultNotes', {
-                    currentValue: stitchUi.uploadedResultNotes,
-                  })
-                }
-              />
-            </div>
-            <textarea
-              id="textarea-result-notes"
-              rows={3}
-              value={stitchUi.uploadedResultNotes || ''}
-              onChange={(e) =>
-                onUpdate((prev) => ({
-                  ...prev,
-                  stitchUi: {
-                    ...(prev.stitchUi ?? DEFAULT_STITCH_UI),
-                    uploadedResultNotes: e.target.value,
-                  },
-                  lastUpdated: new Date().toISOString(),
-                }))
-              }
-              placeholder="e.g., Use the imported top bar and cards; wire the 'Export' button to Tauri IPC save_spec_bundle and maintain glassmorphic token classes..."
-              className="w-full p-4 rounded-xl bg-[#141120] border border-[#C084FC]/25 text-sm text-[#E9D5FF] placeholder-[#958EA0]/60 focus:outline-none focus:ring-2 focus:ring-[#8B5CF6] leading-relaxed"
-            />
           </div>
 
           {/* Multi-Screen Prompts */}
@@ -725,12 +644,12 @@ export function StitchStudioDeck({
                               kind: e.target.value as any,
                             })
                           }
-                          className="w-full px-2.5 py-1.5 rounded-lg bg-[#0F0C1B] border border-[#C084FC]/20 text-xs text-[#E9D5FF] focus:outline-none focus:ring-1 focus:ring-[#8B5CF6]"
+                          className="w-full px-2.5 py-1.5 rounded-lg bg-[#141120] border border-[#C084FC]/25 text-xs text-[#E9D5FF] focus:outline-none focus:ring-1 focus:ring-[#8B5CF6]"
                         >
-                          <option value="screen">Full Screen</option>
-                          <option value="menu">Menu Drawer</option>
-                          <option value="modal">Dialog Modal</option>
-                          <option value="component">UI Component</option>
+                          <option value="screen" className="bg-[#181427] text-white">Full Screen</option>
+                          <option value="menu" className="bg-[#181427] text-white">Menu Drawer</option>
+                          <option value="modal" className="bg-[#181427] text-white">Dialog Modal</option>
+                          <option value="component" className="bg-[#181427] text-white">UI Component</option>
                         </select>
                       </div>
 
@@ -788,6 +707,82 @@ export function StitchStudioDeck({
                 ))}
               </div>
             )}
+          </div>
+
+          {/* Upload Stitch Result (Moved to bottom of Stage 1b) */}
+          <div className="pt-6 border-t border-[#8B5CF6]/20 space-y-5">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <LabelWithTooltip
+                  label="Upload What Stitch Built (HTML, ZIP, Screenshot, or Code)"
+                  tooltipKey="stitch-result-upload"
+                />
+                {stitchUi.uploadedResultName && (
+                  <span className="inline-flex items-center gap-1 text-xs font-medium text-[#34D399]">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>{stitchUi.uploadedResultName} attached</span>
+                  </span>
+                )}
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3 p-4 rounded-xl border border-dashed border-[#8B5CF6]/40 bg-[#141120]">
+                <button
+                  type="button"
+                  onClick={() => stitchResultInputRef.current?.click()}
+                  className="pf-btn-secondary inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold cursor-pointer"
+                >
+                  <Upload className="w-4 h-4 text-[#A78BFA]" />
+                  <span>Upload Stitch Export</span>
+                </button>
+                <input
+                  ref={stitchResultInputRef}
+                  type="file"
+                  onChange={(e) => void handleUploadStitchResult(e.target.files)}
+                  className="hidden"
+                />
+                <span className="text-xs text-[#CBC3D7]">
+                  Importing your Stitch output enables full-stack builders to wire state and handlers directly onto the exact layout.
+                </span>
+              </div>
+            </div>
+
+            {/* Stitch Result Handoff Notes */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <LabelWithTooltip
+                  label="Stitch Result Handoff Notes"
+                  tooltipKey="uploadedResultNotes"
+                  htmlFor="textarea-result-notes"
+                />
+                <FillWithAiButton
+                  fieldLabel="Handoff Notes"
+                  loading={fillingField === 'uploadedResultNotes'}
+                  disabled={fillingField === 'uploadedResultNotes'}
+                  onClick={() =>
+                    void onFillField('uploadedResultNotes', {
+                      currentValue: stitchUi.uploadedResultNotes,
+                    })
+                  }
+                />
+              </div>
+              <textarea
+                id="textarea-result-notes"
+                rows={3}
+                value={stitchUi.uploadedResultNotes || ''}
+                onChange={(e) =>
+                  onUpdate((prev) => ({
+                    ...prev,
+                    stitchUi: {
+                      ...(prev.stitchUi ?? DEFAULT_STITCH_UI),
+                      uploadedResultNotes: e.target.value,
+                    },
+                    lastUpdated: new Date().toISOString(),
+                  }))
+                }
+                placeholder="e.g., Use the imported top bar and cards; wire the 'Export' button to Tauri IPC save_spec_bundle and maintain glassmorphic token classes..."
+                className="w-full p-4 rounded-xl bg-[#141120] border border-[#C084FC]/25 text-sm text-[#E9D5FF] placeholder-[#958EA0]/60 focus:outline-none focus:ring-2 focus:ring-[#8B5CF6] leading-relaxed"
+              />
+            </div>
           </div>
         </section>
       </div>
